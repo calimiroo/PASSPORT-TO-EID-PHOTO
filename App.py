@@ -14,8 +14,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import io
 from PIL import Image, ImageDraw, ImageFont
 import base64
-import arabic_reshaper
-from bidi.algorithm import get_display
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -64,12 +62,12 @@ if not st.session_state.authenticated:
                     st.error("Password Wrong")
         st.markdown('</div>', unsafe_allow_html=True)
     
-    st.stop()
+    st.stop()  # يوقف التنفيذ حتى يتم التحقق
 
-# --- Main App ---
+# --- إذا تم التحقق بنجاح، يستمر التطبيق الرئيسي ---
 st.title("H-TRACING (ICP)")
 
-# --- Improve table appearance ---
+# --- Improve table appearance and make it single line (No Wrap) ---
 st.markdown("""
     <style>
     .stTable td, .stTable th {
@@ -84,7 +82,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- Session State ---
+# --- Session State Management ---
 if 'run_state' not in st.session_state:
     st.session_state.run_state = 'stopped'
 if 'batch_results' not in st.session_state:
@@ -117,9 +115,14 @@ def apply_styling(df):
 
 def reshape_arabic(text):
     try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
         if text and any('\u0600' <= c <= '\u06FF' for c in text):
             reshaped = arabic_reshaper.reshape(text)
             return get_display(reshaped)
+        return text
+    except ImportError:
+        st.warning("Libraries 'arabic-reshaper' and 'python-bidi' are not installed. Arabic texts may appear unformatted. Run: pip install arabic-reshaper python-bidi")
         return text
     except:
         return text
@@ -156,32 +159,30 @@ def wrap_text(draw, text, font, max_width):
     return lines
 
 def create_card_image(data, size=(5760, 2700)):
-    img = Image.new('RGB', size, color=(255, 255, 255))
+    img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
-
-    # أحجام خطوط أكبر وأوضح
-    title_font_size = 220
-    label_font_size = 140
-    value_font_size = 130
-
+    title_font_size = 130
+    label_font_size = 95
+    value_font_size = 85
     try:
         title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
-        label_font = ImageFont.truetype("arialbd.ttf", label_font_size)
+        label_font = ImageFont.truetype("arial.ttf", label_font_size)
         value_font = ImageFont.truetype("arial.ttf", value_font_size)
     except:
-        title_font = ImageFont.load_default()
+        try:
+            title_font = ImageFont.truetype("arial.ttf", title_font_size)
+        except:
+            title_font = ImageFont.load_default()
         label_font = ImageFont.load_default()
         value_font = ImageFont.load_default()
 
-    # شريط العنوان الذهبي
-    draw.rectangle([(0, 0), (size[0], 280)], fill=(218, 165, 32))
-    draw.text((200, 60), "H-TRACING", fill=(0, 0, 139), font=title_font)
+    draw.rectangle([(0, 0), (size[0], 150)], fill=(218, 165, 32))
+    draw.text((120, 40), "H-TRACING", fill=(0, 0, 139), font=title_font)
 
-    # الصورة الشخصية
-    photo_x, photo_y = 300, 400
-    photo_size = (1400, 1400)
+    photo_x, photo_y = 180, 320
+    photo_size = (950, 950)
     draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
-                   outline=(50, 50, 50), width=15, fill=(240, 240, 240))
+                   outline=(80, 80, 80), width=10, fill=(230, 230, 230))
 
     if 'Photo' in data and data['Photo']:
         try:
@@ -190,17 +191,17 @@ def create_card_image(data, size=(5760, 2700)):
             personal_photo = personal_photo.resize(photo_size, Image.LANCZOS)
             img.paste(personal_photo, (photo_x, photo_y))
         except Exception as e:
-            logger.warning(f"Failed to load photo: {e}")
-            draw.text((photo_x + 200, photo_y + 500), "NO PHOTO", fill=(100, 100, 100), font=title_font)
+            logger.warning(f"Failed to load personal photo: {e}")
+            draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
+                      fill=(120, 120, 120), font=title_font, align="center")
     else:
-        draw.text((photo_x + 200, photo_y + 500), "NO PHOTO", fill=(100, 100, 100), font=title_font)
+        draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
+                  fill=(120, 120, 120), font=title_font, align="center")
 
-    # مواضع النصوص
-    x_label = photo_x + photo_size[0] + 400
-    x_value = x_label + 1800
-    y_start = 450
-    line_height = 220
-
+    x_label = photo_x + photo_size[0] + 250
+    x_value = x_label + 1600
+    y_start = 350
+    line_height = 135
     fields = [
         ("English Name:", 'English Name'),
         ("Arabic Name:", 'Arabic Name'),
@@ -215,26 +216,21 @@ def create_card_image(data, size=(5760, 2700)):
     ]
 
     y = y_start
-    max_value_width = size[0] - x_value - 300
-
+    max_value_width = size[0] - x_value - 200
     for label_text, key in fields:
         value = data.get(key, '')
         if key in ['EID Expire Date']:
             value = format_date(value)
-
         value_display = reshape_arabic(str(value))
-        label_display = reshape_arabic(label_text)
-
-        draw.text((x_label, y), label_display, fill=(0, 0, 0), font=label_font)
-
+        draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
         for line in wrapped_lines:
             draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
-            y += line_height
-        y += 80  # مسافة إضافية بين الحقول
+            y += line_height // 1.8
+        y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.8)
 
     buffer = io.BytesIO()
-    img.save(buffer, format="JPEG", quality=95)
+    img.save(buffer, format="JPEG", quality=98)
     buffer.seek(0)
     return buffer
 
@@ -258,14 +254,17 @@ class ICPScraper:
         options.add_experimental_option("useAutomationExtension", False)
         
         import os
+        # التحقق من وجود المتصفح في مسارات Linux الشائعة (Streamlit Cloud)
         chrome_bin = "/usr/bin/chromium"
         if not os.path.exists(chrome_bin):
             chrome_bin = "/usr/bin/chromium-browser"
             
         if os.path.exists(chrome_bin):
             options.binary_location = chrome_bin
+            # في Streamlit Cloud، نستخدم المشغل المثبت في النظام مباشرة لتجنب تعارض الإصدارات
             service = Service("/usr/bin/chromedriver") if os.path.exists("/usr/bin/chromedriver") else Service(ChromeDriverManager().install())
         else:
+            # التشغيل المحلي (Windows/Mac)
             service = Service(ChromeDriverManager().install())
         
         self.driver = webdriver.Chrome(service=service, options=options)
@@ -278,60 +277,105 @@ class ICPScraper:
 
     def safe_clear_and_fill(self, element, value):
         element.send_keys(Keys.CONTROL + "a")
-        element.send_keys(Keys.DELETE)
-        element.send_keys(value)
+        element.send_keys(Keys.BACKSPACE)
+        time.sleep(0.5)
+        element.send_keys(str(value))
 
-    def select_from_dropdown(self, label_text, value):
+    def select_from_dropdown(self, label_name, search_value):
         try:
-            dropdown = self.wait.until(EC.element_to_be_clickable((By.XPATH, f"//label[contains(text(),'{label_text}')]/following::select[1]")))
-            dropdown.click()
-            option = self.wait.until(EC.element_to_be_clickable((By.XPATH, f"//option[contains(text(),'{value}') or @value='{value}']")))
-            option.click()
+            dropdown_xpath = f"//label[contains(text(),'{label_name}')]/following::div[contains(@class,'ui-select-container')][1]"
+            container = self.wait.until(EC.element_to_be_clickable((By.XPATH, dropdown_xpath)))
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", container)
+            container.click()
+            time.sleep(1)
+            search_input = self.wait.until(EC.visibility_of_element_located((By.XPATH, f"//label[contains(text(),'{label_name}')]/following::input[not(@type='hidden')][1]")))
+            self.safe_clear_and_fill(search_input, search_value)
+            time.sleep(2)
+            result_xpath = f"//div[contains(@class,'ui-select-choices')]//span[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{str(search_value).lower()}')]"
+            result_item = self.wait.until(EC.element_to_be_clickable((By.XPATH, result_xpath)))
+            self.driver.execute_script("arguments[0].click();", result_item)
+            time.sleep(1)
         except Exception as e:
-            logger.warning(f"Dropdown select failed for {label_text}: {e}")
+            logger.warning(f"Dropdown selection failed for {label_name}: {e}")
 
     def capture_network_data(self):
-        logs = self.driver.get_log('performance')
-        for entry in logs:
-            message = json.loads(entry['message'])['message']
-            if message['method'] == 'Network.responseReceived':
-                url = message['params']['response']['url']
-                if 'searchPersonalInfo' in url:
-                    request_id = message['params']['requestId']
+        logger.info(" [>] Analyzing Network logs...")
+        time.sleep(20)
+        try:
+            logs = self.driver.get_log('performance')
+            for entry in reversed(logs):
+                message = json.loads(entry['message'])['message']
+                if 'Network.responseReceived' in message['method']:
+                    params = message.get('params', {})
+                    request_id = params.get('requestId')
                     try:
-                        response_body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
-                        data = json.loads(response_body['body'])
-                        if data.get('status') == 'success' and data.get('data'):
-                            info = data['data'][0]
-                            result = {
-                                'Status': 'Found',
-                                'English Name': info.get('fullNameEnglish', ''),
-                                'Arabic Name': info.get('fullNameArabic', ''),
-                                'Unified Number': info.get('unifiedNumber', ''),
-                                'EID Number': info.get('emiratesIdNumber', ''),
-                                'EID Expire Date': info.get('emiratesIdExpiryDate', ''),
-                                'Visa Issue Place': info.get('visaIssuePlace', ''),
-                                'Profession': info.get('professionEnglish', ''),
-                                'English Sponsor Name': info.get('sponsorNameEnglish', ''),
-                                'Arabic Sponsor Name': info.get('sponsorNameArabic', '')
-                            }
-                            return result
+                        resp_obj = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
+                        body = resp_obj['body']
+                        if 'isValid' in body:
+                            data = json.loads(body)
+                            if 'isValid' in data:
+                                if data['isValid']:
+                                    personal_info = data.get('personalInfo', {})
+                                    info = personal_info[0] if isinstance(personal_info, list) and personal_info else personal_info
+                                    return {
+                                        'English Name': info.get('englishFullName'),
+                                        'Arabic Name': info.get('arabicFullName'),
+                                        'Unified Number': info.get('unifiedNumber'),
+                                        'EID Number': info.get('identityNumber'),
+                                        'EID Expire Date': info.get('identityExpireDate'),
+                                        'Visa Issue Place': info.get('englishIdentityIssuePlace'),
+                                        'Profession': info.get('englishProfession'),
+                                        'English Sponsor Name': info.get('englishSponsorName'),
+                                        'Arabic Sponsor Name': info.get('arabicSponsorName'),
+                                        'Status': 'Found'
+                                    }
+                                elif data['isValid'] is False:
+                                    return {'Status': 'Not Found'}
                     except:
-                        pass
+                        continue
+        except Exception as e:
+            logger.error(f"Capture Error: {e}")
         return {'Status': 'Not Found'}
 
     def extract_qr_url(self):
+        self.driver.execute_script("""
+            if (typeof jsQR === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+                document.head.appendChild(script);
+            }
+        """)
+        time.sleep(3)
         qr_url = self.driver.execute_async_script("""
             const callback = arguments[arguments.length - 1];
             const extractQR = async () => {
-                const link = document.querySelector('a[ng-click="generateQrCode()"]');
-                if (link) {
-                    link.click();
-                    await new Promise(r => setTimeout(r, 3000));
-                    return document.querySelector('a[ng-href^="blob:"]')?.getAttribute('ng-href') || 
-                           document.querySelector('a[href^="blob:"]')?.href || null;
-                }
-                return null;
+                const getQR = () => {
+                    let c = document.querySelector('canvas');
+                    if (c) return c;
+                    let i = document.querySelectorAll('img');
+                    for (let img of i) {
+                        if (img.src && (img.src.includes('data:image') || img.src.includes('blob') || img.src.includes('qr'))) return img;
+                    }
+                    return null;
+                };
+                const el = getQR();
+                if (!el) return null;
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = el.toDataURL ? el.toDataURL() : el.src;
+                return new Promise((resolve) => {
+                    img.onload = () => {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        context.drawImage(img, 0, 0);
+                        const imageData = context.getImageData(0, 0, img.width, img.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+                        resolve(code ? code.data : null);
+                    };
+                    img.onerror = () => resolve(null);
+                });
             };
             extractQR().then(callback);
         """)
@@ -414,9 +458,13 @@ class ICPScraper:
                             photo_src = photo_element.get_attribute('src')
                             if photo_src and 'base64' in photo_src:
                                 result['Photo'] = photo_src
-                                logger.info("Personal photo extracted successfully.")
+                                logger.info("Personal photo extracted successfully (longest base64 selected).")
+                            else:
+                                logger.warning("Found data:image but no valid base64.")
+                        else:
+                            logger.warning("No data:image/img elements found on the digital card page.")
                     except Exception as e:
-                        logger.warning(f"Failed to extract photo: {e}")
+                        logger.warning(f"Failed to extract personal photo: {e}")
             return result
         except Exception as e:
             logger.error(f"Error during search: {e}")
@@ -460,22 +508,19 @@ with tab1:
    
     single_table_area = st.empty()
     card_image_area = st.empty()
-    
     if st.session_state.single_result:
         displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
                             'EID Expire Date', 'Visa Issue Place', 'Profession',
                             'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
         filtered_df = pd.DataFrame([{k: v for k, v in st.session_state.single_result.items() if k in displayed_fields}])
         single_table_area.table(apply_styling(filtered_df))
-        
         if st.session_state.single_result.get('Status') == 'Found':
             card_buffer = create_card_image(st.session_state.single_result)
-            card_image_area.image(card_buffer, caption="Generated Card (Preview)", use_column_width=True)
-            
-            st.button("🔍 Toggle Full Width" if not st.session_state.card_enlarged else "🔍 Normal View", on_click=toggle_card)
-            
+            card_width = 1400 if st.session_state.card_enlarged else 700
+            card_image_area.image(card_buffer, caption="Generated Card (Preview)", width=card_width)
+            st.button("Enlarge Card" if not st.session_state.card_enlarged else "Shrink Card", on_click=toggle_card)
             st.download_button(
-                label="📥 Download Full Resolution Card",
+                label="📥 Download Card",
                 data=card_buffer,
                 file_name=f"card_{st.session_state.single_result.get('Unified Number', 'unknown')}.jpg",
                 mime="image/jpeg"
@@ -490,7 +535,6 @@ with tab2:
         df_show.index = range(1, len(df_show) + 1)
         st.write(f"Total records: {len(df_original)}")
         st.dataframe(df_show, height=150, use_container_width=True)
-        
         col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
         if col_ctrl1.button("▶️ Start / Resume"):
             st.session_state.run_state = 'running'
@@ -503,13 +547,11 @@ with tab2:
             st.session_state.batch_results = []
             st.session_state.start_time_ref = None
             st.rerun()
-            
         progress_bar = st.progress(0)
         status_text = st.empty()
         stats_area = st.empty()
         live_table_area = st.empty()
         actual_success = 0
-        
         for i, row in df_original.iterrows():
             while st.session_state.run_state == 'paused':
                 status_text.warning("Paused...")
@@ -527,7 +569,6 @@ with tab2:
                 live_table_area.table(apply_styling(filtered_batch_df))
                 progress_bar.progress((i + 1) / len(df_original))
                 continue
-                
             p_num = str(row.get('Passport Number', '')).strip()
             nat = str(row.get('Nationality', 'Egypt')).strip()
             try:
@@ -535,17 +576,14 @@ with tab2:
             except:
                 dob = str(row.get('Date of Birth', ''))
             gender = str(row.get('Gender', '1')).strip()
-            
             status_text.info(f"Processing {i+1}/{len(df_original)}: {p_num}")
             scraper = ICPScraper()
             res = scraper.perform_single_search(p_num, nat, dob, gender)
             if res.get('Status') == 'Found':
                 actual_success += 1
             st.session_state.batch_results.append(res)
-            
             elapsed = time.time() - (st.session_state.start_time_ref or time.time())
             stats_area.markdown(f"✅ **Success:** {actual_success} | ⏱️ **Time:** {format_time(elapsed)}")
-            
             displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
                                 'EID Expire Date', 'Visa Issue Place', 'Profession',
                                 'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
@@ -553,9 +591,11 @@ with tab2:
                                               for item in st.session_state.batch_results])
             live_table_area.table(apply_styling(filtered_batch_df))
             progress_bar.progress((i + 1) / len(df_original))
-            
         if len(st.session_state.batch_results) == len(df_original) and len(df_original) > 0:
             st.success("Search Finished!")
+            displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
+                                'EID Expire Date', 'Visa Issue Place', 'Profession',
+                                'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
             final_df = pd.DataFrame([{k: v for k, v in item.items() if k in displayed_fields}
                                      for item in st.session_state.batch_results])
             excel_data = to_excel(final_df)
@@ -563,5 +603,6 @@ with tab2:
                 label="📥 Download Results",
                 data=excel_data,
                 file_name=f"search_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="dl_results"
             )
