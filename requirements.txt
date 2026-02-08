@@ -1,0 +1,8 @@
+streamlit
+pandas
+selenium
+webdriver-manager
+Pillow
+xlsxwriter
+arabic-reshaper
+python-bidi
