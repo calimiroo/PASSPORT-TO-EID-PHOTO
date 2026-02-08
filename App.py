@@ -161,9 +161,9 @@ def wrap_text(draw, text, font, max_width):
 def create_card_image(data, size=(5760, 2700)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
-    title_font_size = 130
-    label_font_size = 95
-    value_font_size = 85
+    title_font_size = 180
+    label_font_size = 140
+    value_font_size = 130
     try:
         title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
         label_font = ImageFont.truetype("arial.ttf", label_font_size)
@@ -199,9 +199,9 @@ def create_card_image(data, size=(5760, 2700)):
                   fill=(120, 120, 120), font=title_font, align="center")
 
     x_label = photo_x + photo_size[0] + 250
-    x_value = x_label + 1600
+    x_value = x_label + 1100  # تقليل المسافة بين العنوان والقيمة لتصبح أوضح
     y_start = 350
-    line_height = 135
+    line_height = 190  # زيادة المسافة بين السطور لتناسب الخط الأكبر
     fields = [
         ("English Name:", 'English Name'),
         ("Arabic Name:", 'Arabic Name'),
