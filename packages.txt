@@ -1,2 +1,5 @@
 chromium
 chromium-driver
+fonts-dejavu-core
+fonts-freefont-ttf
+liberation-fonts-common
