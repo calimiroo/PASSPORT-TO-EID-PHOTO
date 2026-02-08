@@ -242,27 +242,33 @@ class ICPScraper:
 
     def setup_driver(self):
         options = webdriver.ChromeOptions()
-        options.add_argument("--headless=new")  # استخدام وضع Headless الجديد الأكثر استقراراً
+        options.add_argument("--headless=new")
         options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")  # تحديد حجم النافذة لضمان ظهور العناصر
+        options.add_argument("--window-size=1920,1080")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-blink-features=AutomationControlled")  # إخفاء بصمة الأتمتة
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
         
-        # إضافة مسار Chromium للعمل على Streamlit Cloud
         import os
-        if os.path.exists("/usr/bin/chromium"):
-            options.binary_location = "/usr/bin/chromium"
-        elif os.path.exists("/usr/bin/chromium-browser"):
-            options.binary_location = "/usr/bin/chromium-browser"
+        # التحقق من وجود المتصفح في مسارات Linux الشائعة (Streamlit Cloud)
+        chrome_bin = "/usr/bin/chromium"
+        if not os.path.exists(chrome_bin):
+            chrome_bin = "/usr/bin/chromium-browser"
+            
+        if os.path.exists(chrome_bin):
+            options.binary_location = chrome_bin
+            # في Streamlit Cloud، نستخدم المشغل المثبت في النظام مباشرة لتجنب تعارض الإصدارات
+            service = Service("/usr/bin/chromedriver") if os.path.exists("/usr/bin/chromedriver") else Service(ChromeDriverManager().install())
+        else:
+            # التشغيل المحلي (Windows/Mac)
+            service = Service(ChromeDriverManager().install())
         
-        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        self.driver = webdriver.Chrome(service=service, options=options)
         
-        # تنفيذ كود JavaScript لإخفاء بصمة WebDriver تماماً
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         })
