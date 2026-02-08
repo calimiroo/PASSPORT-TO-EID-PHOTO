@@ -252,8 +252,13 @@ class ICPScraper:
         options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
-options.binary_location = "/usr/bin/chromium
-
+        
+        # إضافة مسار Chromium للعمل على Streamlit Cloud
+        import os
+        if os.path.exists("/usr/bin/chromium"):
+            options.binary_location = "/usr/bin/chromium"
+        elif os.path.exists("/usr/bin/chromium-browser"):
+            options.binary_location = "/usr/bin/chromium-browser"
         
         self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         
