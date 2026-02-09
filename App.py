@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -17,19 +17,46 @@ import base64
 import os
 import tempfile
 
-# --- Font Setup Function ---
+# --- Font Setup Function (Updated) ---
 def get_font_path(font_name):
-    """يبحث عن الخط في: ./fonts/, ثم النظام، ثم يعيد None"""
-    paths = [
-        os.path.join(os.getcwd(), "fonts", font_name),
-        os.path.join(os.getcwd(), font_name),
-        "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "C:/Windows/Fonts/tahoma.ttf",
-    ]
-    for p in paths:
-        if os.path.exists(p):
-            return p
+    """
+    Returns the path to a font file, checking in order:
+    1. Current directory (for local dev)
+    2. ./fonts/ folder (for GitHub/Streamlit Cloud)
+    3. System paths (fallback)
+    4. Return None if nothing found -> PIL will use default
+    """
+    # 1. Check ./fonts/ folder
+    fonts_dir = os.path.join(os.getcwd(), "fonts")
+    font_path = os.path.join(fonts_dir, font_name)
+    if os.path.exists(font_path):
+        return font_path
+
+    # 2. Check current directory
+    if os.path.exists(font_name):
+        return font_name
+
+    # 3. Common system fallbacks (especially on Streamlit Cloud/Linux)
+    system_fonts = {
+        "Tajawal-Bold.ttf": [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ],
+        "Tajawal-Regular.ttf": [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        ],
+        # Generic fallbacks
+        "arialbd.ttf": ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
+        "arial.ttf": ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"],
+    }
+
+    candidates = system_fonts.get(font_name, [])
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+
+    # 4. If nothing found, return None -> PIL will use default
     return None
 
 # --- Logging Setup ---
@@ -92,7 +119,7 @@ if 'card_enlarged' not in st.session_state:
     st.session_state.card_enlarged = False
 
 # Nationalities
-countries_list = ["Select Nationality", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"]
+countries_list = ["Select Nationality", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senin", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"]
 
 def format_time(seconds):
     return str(timedelta(seconds=int(seconds)))
@@ -148,10 +175,25 @@ def create_card_image(data, size=(5760, 2700)):
     img = Image.new('RGB', size, (250,250,250))
     draw = ImageDraw.Draw(img)
     
-    # Load Arabic-friendly fonts
-    title_font = ImageFont.truetype(get_font_path("Tajawal-Bold.ttf") or "arialbd.ttf", 130)
-    label_font = ImageFont.truetype(get_font_path("Tajawal-Regular.ttf") or "arial.ttf", 95)
-    value_font = ImageFont.truetype(get_font_path("Tajawal-Regular.ttf") or "arial.ttf", 85)
+    # Load Arabic-friendly fonts (with fallbacks)
+    title_font_path = get_font_path("Tajawal-Bold.ttf")
+    label_font_path = get_font_path("Tajawal-Regular.ttf")
+    value_font_path = get_font_path("Tajawal-Regular.ttf")
+
+    try:
+        title_font = ImageFont.truetype(title_font_path or "DejaVuSans-Bold.ttf", 130)
+    except:
+        title_font = ImageFont.load_default()
+
+    try:
+        label_font = ImageFont.truetype(label_font_path or "DejaVuSans.ttf", 95)
+    except:
+        label_font = ImageFont.load_default()
+
+    try:
+        value_font = ImageFont.truetype(value_font_path or "DejaVuSans.ttf", 85)
+    except:
+        value_font = ImageFont.load_default()
 
     # Header
     draw.rectangle([(0,0), (size[0],150)], fill=(218,165,32))
@@ -441,7 +483,18 @@ with tab1:
     c1,c2,c3 = st.columns(3)
     p = c1.text_input("رقم الجواز", key="sp")
     n = c2.selectbox("الجنسية", countries_list, key="sn")
-    d = c3.date_input("تاريخ الميلاد", format="DD/MM/YYYY", key="sd")
+    # --- التحديث: إضافة max_value وتنبيه ---
+    d = c3.date_input(
+        "تاريخ الميلاد",
+        value=None,
+        min_value=datetime(1900, 1, 1),
+        max_value=date.today(),  # <-- هذا هو التحديث المهم
+        format="DD/MM/YYYY",
+        key="sd"
+    )
+    if d and d > date.today():
+        st.warning("⚠️ لا يمكن أن يكون تاريخ الميلاد في المستقبل!")
+
     g = st.radio("الجنس", ["Male", "Female"], key="sg")
 
     b1,b2,b3 = st.columns(3)
@@ -506,13 +559,24 @@ with tab2:
 
             p = str(row.get('Passport Number','')).strip()
             n = str(row.get('Nationality','Egypt')).strip()
-            try: d = pd.to_datetime(row['Date of Birth']).strftime('%d/%m/%Y')
-            except: d = ''
+            try:
+                dob_row = row['Date of Birth']
+                # --- التحديث: التأكد من أن التاريخ لا يكون في المستقبل ---
+                if pd.isna(dob_row):
+                    continue
+                dob_dt = pd.to_datetime(dob_row)
+                if dob_dt.date() > date.today():
+                    st.warning(f"⚠️ تاريخ الميلاد في السطر {i+1} في المستقبل. تخطي.")
+                    continue
+                d_formatted = dob_dt.strftime('%d/%m/%Y')
+            except:
+                d_formatted = ''
+
             g = str(row.get('Gender', '1')).strip()
 
             stat.info(f"المعالجة: {i+1}/{len(df)} | {p}")
             scraper = ICPScraper()
-            res = scraper.perform_single_search(p, n, d, g)
+            res = scraper.perform_single_search(p, n, d_formatted, g)
             st.session_state.batch_results.append(res)
             if res.get('Status') == 'Found': success += 1
 
