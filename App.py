@@ -228,6 +228,7 @@ class ICPScraper:
         except Exception as e:
             logger.warning(f"Dropdown selection failed for {label_name}: {e}")
 
+    # --- التعديل هنا ---
     def capture_network_data(self):
         logger.info(" [>] Analyzing Network logs...")
         time.sleep(20)
@@ -237,23 +238,32 @@ class ICPScraper:
                 if 'Network.responseReceived' in message['method']:
                     request_id = message.get('params', {}).get('requestId')
                     try:
-                        body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})['body']
-                        data = json.loads(body)
-                        if data.get('isValid'):
-                            info = data.get('personalInfo', [{}])[0]
-                            return {
-                                'English Name': info.get('englishFullName'), 'Arabic Name': info.get('arabicFullName'),
-                                'Unified Number': info.get('unifiedNumber'), 'EID Number': info.get('identityNumber'),
-                                'EID Expire Date': info.get('identityExpireDate'), 'Visa Issue Place': info.get('englishIdentityIssuePlace'),
-                                'Profession': info.get('englishProfession'), 'English Sponsor Name': info.get('englishSponsorName'),
-                                'Arabic Sponsor Name': info.get('arabicSponsorName'), 'Status': 'Found'
-                            }
-                        elif data.get('isValid') is False:
-                            return {'Status': 'Not Found'}
-                    except: continue
+                        # استلام البيانات الأولية
+                        resp_obj = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
+                        
+                        # فك ترميز النص باستخدام UTF-8
+                        body_text = resp_obj['body'].encode('latin-1').decode('utf-8')
+
+                        if 'isValid' in body_text:
+                            data = json.loads(body_text)
+                            if data.get('isValid'):
+                                info = data.get('personalInfo', [{}])[0]
+                                return {
+                                    'English Name': info.get('englishFullName'), 'Arabic Name': info.get('arabicFullName'),
+                                    'Unified Number': info.get('unifiedNumber'), 'EID Number': info.get('identityNumber'),
+                                    'EID Expire Date': info.get('identityExpireDate'), 'Visa Issue Place': info.get('englishIdentityIssuePlace'),
+                                    'Profession': info.get('englishProfession'), 'English Sponsor Name': info.get('englishSponsorName'),
+                                    'Arabic Sponsor Name': info.get('arabicSponsorName'), 'Status': 'Found'
+                                }
+                            elif data.get('isValid') is False:
+                                return {'Status': 'Not Found'}
+                    except Exception as e:
+                        # تجاهل الأخطاء في حال كانت البيانات غير قابلة للتحويل (ليست JSON مثلاً)
+                        continue
         except Exception as e:
             logger.error(f"Capture Error: {e}")
         return {'Status': 'Not Found'}
+    # --- نهاية التعديل ---
 
     def extract_qr_url(self):
         self.driver.execute_script("if (typeof jsQR === 'undefined') { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'; document.head.appendChild(script ); }")
