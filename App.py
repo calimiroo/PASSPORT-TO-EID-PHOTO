@@ -185,7 +185,7 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
-    # --- الكود الصحيح هنا ---
+    # --- الحل الجذري هنا ---
     def setup_driver(self ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
@@ -204,14 +204,19 @@ class ICPScraper:
             options.binary_location = "/usr/bin/chromium-browser"
 
         try:
-            logger.info("Setting up WebDriver using ChromeDriverManager to install a compatible driver...")
-            # استخدام webdriver-manager لتنزيل المحرك المتوافق دائماً
-            service = Service(ChromeDriverManager().install())
+            logger.info("Downloading and installing a compatible chromedriver...")
+            # 1. تنزيل المحرك والحصول على مساره الصريح
+            driver_path = ChromeDriverManager().install()
+            logger.info(f"Chromedriver downloaded to: {driver_path}")
             
+            # 2. إنشاء الخدمة باستخدام المسار الصريح للمحرك
+            service = Service(executable_path=driver_path)
+            
+            # 3. تشغيل المتصفح
             self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
             self.wait = WebDriverWait(self.driver, 30)
-            logger.info("WebDriver setup successful.")
+            logger.info("WebDriver setup successful using explicit driver path.")
         except Exception as e:
             logger.error(f"Failed to create WebDriver session: {e}")
             st.error(f"Could not start browser session. Please check logs. Error: {e}")
