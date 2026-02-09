@@ -1,6 +1,1 @@
-chromium
-chromium-driver
-fonts-dejavu-core
-fonts-freefont-ttf
-fonts-liberation
-fonts-noto-core
+chromium-chromedriver
