@@ -20,26 +20,39 @@ import tempfile
 # --- Font Setup Function ---
 def get_font_path(font_name):
     """
-    Returns the path to a font file. On Streamlit Cloud, it will look for fonts in the temp directory.
+    Returns the path to a font file, checking in order:
+    1. Current directory (for local dev)
+    2. ./fonts/ folder (for GitHub/Streamlit Cloud)
+    3. Temp dir (if uploaded via st.file_uploader — optional)
+    4. Fallback to system default
     """
-    # Define common font names for different OS
-    possible_names = {
-        "arialbd.ttf": ["arialbd.ttf", "Arial_Bold.ttf", "Arial Bold.ttf"],
-        "arial.ttf": ["arial.ttf", "Arial.ttf"]
-    }
+    # 1. Current working dir
+    if os.path.exists(font_name):
+        return font_name
 
-    # First, check if the font exists in the current working directory
-    for name in possible_names.get(font_name, [font_name]):
-        if os.path.exists(name):
-            return name
+    # 2. ./fonts/ folder (most reliable for Streamlit Cloud)
+    fonts_dir = os.path.join(os.getcwd(), "fonts")
+    font_path = os.path.join(fonts_dir, font_name)
+    if os.path.exists(font_path):
+        return font_path
 
-    # Then, check in the temporary directory where we might have placed our own fonts
+    # 3. Try temp dir (if user uploaded fonts — not needed now, but safe)
     temp_dir = tempfile.gettempdir()
     temp_font_path = os.path.join(temp_dir, font_name)
     if os.path.exists(temp_font_path):
         return temp_font_path
 
-    # As a last resort, try to load default fonts (this is fallback)
+    # 4. Fallback: try common system paths (Linux/Windows/Mac)
+    system_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # fallback sans-serif
+        "/System/Library/Fonts/Helvetica.ttc",              # macOS
+        "C:/Windows/Fonts/arial.ttf",                       # Windows
+    ]
+    for p in system_paths:
+        if os.path.exists(p):
+            return p
+
+    # Final fallback: use default (may break Arabic)
     return None
 
 
@@ -70,7 +83,7 @@ if not st.session_state.authenticated:
             margin-top: 50px;
         }
         </style>
-    """, unsafe_allow_html=True)
+    ""`, unsafe_allow_html=True)
     
     st.markdown('<div class="big-title">H-TRACING (ICP)</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center; font-size: 1.2rem; color: #555; margin-bottom: 40px;">Enter Password</div>', unsafe_allow_html=True)
@@ -108,7 +121,7 @@ st.markdown("""
         overflow-x: auto !important;
     }
     </style>
-    """, unsafe_allow_html=True)
+    ""`, unsafe_allow_html=True)
 
 # --- Session State Management ---
 if 'run_state' not in st.session_state:
@@ -275,7 +288,7 @@ def create_card_image(data, size=(5760, 2700)):
             value = format_date(value)
         value_display = reshape_arabic(str(value))
         draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
-        wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
+        wrapped_lines = wrap_text(draw, value_display, value_font, max_width)
         for line in wrapped_lines:
             draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
             y += line_height // 1.8
@@ -406,7 +419,7 @@ class ICPScraper:
                     if (c) return c;
                     let i = document.querySelectorAll('img');
                     for (let img of i) {
-                        if (img.src && (img.src.includes('data:image') || img.src.includes('blob') || img.src.includes('qr'))) return img;
+                        if (img.src && (img.src.includes('image') || img.src.includes('blob') || img.src.includes('qr'))) return img;
                     }
                     return null;
                 };
@@ -504,7 +517,7 @@ class ICPScraper:
                     self.driver.get(qr_url)
                     time.sleep(15)
                     try:
-                        photo_elements = self.driver.find_elements(By.CSS_SELECTOR, 'img[src^="data:image"]')
+                        photo_elements = self.driver.find_elements(By.CSS_SELECTOR, 'img[src^="image"]')
                         if photo_elements:
                             photo_element = max(photo_elements, key=lambda el: len(el.get_attribute('src') or ''))
                             photo_src = photo_element.get_attribute('src')
@@ -514,7 +527,7 @@ class ICPScraper:
                             else:
                                 logger.warning("Found data:image but no valid base64.")
                         else:
-                            logger.warning("No data:image/img elements found on the digital card page.")
+                            logger.warning("No image/img elements found on the digital card page.")
                     except Exception as e:
                         logger.warning(f"Failed to extract personal photo: {e}")
             return result
