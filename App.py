@@ -159,64 +159,96 @@ def wrap_text(draw, text, font, max_width):
         lines.append(current_line.strip())
     return lines
 
-def create_card_image(data, size=(3500, 1800)):  # حجم معقول للكارت
+def get_available_font():
+    """الحصول على الخط المتاح في النظام"""
+    font_paths = [
+        # DejaVu Sans (متوفر في معظم توزيعات Linux)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        # Liberation Sans (بديل جيد لـ Arial)
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        # Noto Sans (متوفر في Streamlit Cloud)
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    ]
+    
+    for path in font_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
+
+def create_card_image(data, size=(3500, 2000)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
     
-    # أحجام الخطوط الكبيرة جداً
-    title_font_size = 150  # كبير جداً
-    label_font_size = 100  # كبير
-    value_font_size = 90   # كبير
+    # أحجام الخطوط الكبيرة
+    title_font_size = 140
+    label_font_size = 100
+    value_font_size = 90
     
-    # محاولة استخدام Liberation Sans (موجود في Linux) أو DejaVu Sans
+    # محاولة استخدام الخطوط المتاحة
     try:
-        title_font = ImageFont.truetype("LiberationSans-Bold.ttf", title_font_size)
-        label_font = ImageFont.truetype("LiberationSans-Regular.ttf", label_font_size)
-        value_font = ImageFont.truetype("LiberationSans-Regular.ttf", value_font_size)
-        logger.info("Using Liberation Sans fonts")
+        # أولاً: حاول استخدام DejaVu Sans
+        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", title_font_size)
+        label_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", label_font_size)
+        value_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", value_font_size)
+        font_name = "DejaVu Sans"
     except:
         try:
-            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", title_font_size)
-            label_font = ImageFont.truetype("DejaVuSans.ttf", label_font_size)
-            value_font = ImageFont.truetype("DejaVuSans.ttf", value_font_size)
-            logger.info("Using DejaVu Sans fonts")
+            # ثانياً: حاول استخدام Liberation Sans
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", title_font_size)
+            label_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", label_font_size)
+            value_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", value_font_size)
+            font_name = "Liberation Sans"
         except:
             try:
-                title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
-                label_font = ImageFont.truetype("arial.ttf", label_font_size)
-                value_font = ImageFont.truetype("arial.ttf", value_font_size)
-                logger.info("Using Arial fonts")
+                # ثالثاً: حاول استخدام Noto Sans
+                title_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", title_font_size)
+                label_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", label_font_size)
+                value_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", value_font_size)
+                font_name = "Noto Sans"
             except:
-                logger.warning("Using default font (Liberation/DejaVu/Arial not found)")
+                # أخيراً: استخدم الخط الافتراضي
+                logger.warning("لم يتم العثور على الخطوط المطلوبة، استخدام الخط الافتراضي")
                 title_font = ImageFont.load_default()
                 label_font = ImageFont.load_default()
                 value_font = ImageFont.load_default()
-
+                font_name = "Default"
+    
+    logger.info(f"Using font: {font_name}")
+    
     # تصميم شريط العنوان
     header_height = 180
     draw.rectangle([(0, 0), (size[0], header_height)], fill=(218, 165, 32))
     
-    # العنوان في المركز
+    # العنوان
     title_text = "H-TRACING ICP CARD"
-    draw.text((size[0]//2 - 400, 50), title_text, fill=(0, 0, 139), font=title_font)
+    title_width = draw.textlength(title_text, font=title_font)
+    title_x = (size[0] - title_width) // 2
+    draw.text((title_x, 50), title_text, fill=(0, 0, 139), font=title_font)
     
-    # معلومات سريعة في أعلى اليسار
+    # معلومات سريعة
+    info_x = 100
     info_y = header_height + 50
+    
     if data.get('Passport Number'):
-        draw.text((100, info_y), f"Passport: {data.get('Passport Number', '')}", 
+        draw.text((info_x, info_y), f"Passport: {data.get('Passport Number', '')}", 
                  fill=(0, 0, 0), font=label_font)
-        info_y += 100
+        info_y += 110
+    
     if data.get('Nationality'):
-        draw.text((100, info_y), f"Nationality: {data.get('Nationality', '')}", 
+        draw.text((info_x, info_y), f"Nationality: {data.get('Nationality', '')}", 
                  fill=(0, 0, 0), font=label_font)
 
-    # الصورة الشخصية على اليمين
+    # الصورة الشخصية
     photo_size = (700, 700)
     photo_x = size[0] - photo_size[0] - 100
     photo_y = header_height + 50
     
     draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
-                   outline=(80, 80, 80), width=10, fill=(230, 230, 230))
+                   outline=(80, 80, 80), width=8, fill=(230, 230, 230))
 
     if 'Photo' in data and data['Photo']:
         try:
@@ -226,13 +258,13 @@ def create_card_image(data, size=(3500, 1800)):  # حجم معقول للكار�
             img.paste(personal_photo, (photo_x, photo_y))
         except Exception as e:
             logger.warning(f"Failed to load personal photo: {e}")
-            draw.text((photo_x + photo_size[0]//2 - 150, photo_y + photo_size[1]//2 - 50), 
+            draw.text((photo_x + 200, photo_y + photo_size[1] // 2 - 50), 
                      "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
     else:
-        draw.text((photo_x + photo_size[0]//2 - 150, photo_y + photo_size[1]//2 - 50), 
+        draw.text((photo_x + 200, photo_y + photo_size[1] // 2 - 50), 
                  "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
 
-    # معلومات النصوص الأساسية
+    # المعلومات التفصيلية
     text_start_x = 100
     text_start_y = header_height + 300
     line_height = 120
@@ -264,23 +296,25 @@ def create_card_image(data, size=(3500, 1800)):  # حجم معقول للكار�
         # رسم التسمية
         draw.text((text_start_x, y), label_text, fill=(0, 0, 0), font=label_font)
         
-        # رسم القيمة مع التفاف النص إذا لزم الأمر
+        # رسم القيمة
         value_x = text_start_x + 500
-        max_value_width = size[0] - value_x - 200
+        max_value_width = size[0] - value_x - 150
         
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
         for i, line in enumerate(wrapped_lines):
-            draw.text((value_x, y + (i * 80)), line, fill=(0, 0, 100), font=value_font)
+            draw.text((value_x, y + (i * 85)), line, fill=(0, 0, 100), font=value_font)
         
-        y += line_height + (len(wrapped_lines) - 1) * 80
+        y += line_height + (len(wrapped_lines) - 1) * 85
 
-    # معلومات إضافية في الأسفل
+    # التذييل
     footer_y = size[1] - 100
     draw.text((100, footer_y), "Generated by H-TRACING System", 
               fill=(100, 100, 100), font=label_font)
     
     current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
-    draw.text((size[0] - 600, footer_y), f"Date: {current_date}", 
+    date_text = f"Date: {current_date}"
+    date_width = draw.textlength(date_text, font=label_font)
+    draw.text((size[0] - date_width - 100, footer_y), date_text, 
               fill=(100, 100, 100), font=label_font)
 
     buffer = io.BytesIO()
