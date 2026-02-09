@@ -10,12 +10,12 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-# سنستخدم هذه المكتبات للتنزيل اليدوي
+# المكتبات اللازمة للحل النهائي
 import requests
 import zipfile
 import io
 import os
-import stat
+import stat # <- المكتبة الجديدة لإدارة الصلاحيات
 
 # --- إعدادات تسجيل الأخطاء ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -188,17 +188,12 @@ class ICPScraper:
     @st.cache_resource
     def get_driver_path( ):
         logger.info("Downloading and setting up a compatible chromedriver...")
-        # --- التعديل هنا ---
-        # استخدام أحدث إصدار معروف من JSON API للعثور على الإصدار الصحيح لـ 144
-        # هذا الرابط يجلب آخر إصدار معروف ومستقر
         api_url = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
         response = requests.get(api_url )
         data = response.json()
-        # البحث عن الإصدار الذي يبدأ بـ 144، أو استخدام أحدث إصدار مستقر كبديل
-        driver_url = None
         stable_channel = data['channels']['Stable']
-        # سنستخدم الإصدار المستقر كأفضل خيار
         downloads = stable_channel['downloads']['chromedriver']
+        driver_url = None
         for item in downloads:
             if item['platform'] == 'linux64':
                 driver_url = item['url']
@@ -207,12 +202,9 @@ class ICPScraper:
         
         if not driver_url:
             raise Exception("Could not find a suitable chromedriver download URL for linux64.")
-        # --- نهاية التعديل ---
 
         driver_zip_path = "/tmp/chromedriver.zip"
-        driver_dir_path = "/tmp/chromedriver-linux64" # المسار قد يختلف بناءً على الملف
         
-        # تنزيل الملف
         response = requests.get(driver_url, stream=True)
         if response.status_code == 200:
             with open(driver_zip_path, "wb") as f:
@@ -220,17 +212,17 @@ class ICPScraper:
         else:
             raise Exception(f"Failed to download chromedriver from {driver_url}")
 
-        # فك الضغط
         with zipfile.ZipFile(driver_zip_path, "r") as zip_ref:
-            # استخراج الملفات وتحديد المسار الصحيح للملف التنفيذي
             file_list = zip_ref.namelist()
-            # عادة ما يكون الملف التنفيذي داخل مجلد
             executable_name = [name for name in file_list if name.endswith('chromedriver')][0]
             zip_ref.extractall("/tmp")
             driver_executable_path = os.path.join("/tmp", executable_name)
 
-        # إعطاء صلاحيات التنفيذ
-        os.chmod(driver_executable_path, stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        # --- السطر الحاسم الذي يحل المشكلة ---
+        # إعطاء صلاحيات التنفيذ للملف
+        st = os.stat(driver_executable_path)
+        os.chmod(driver_executable_path, st.st_mode | stat.S_IEXEC)
+        # --- نهاية التعديل ---
         
         logger.info(f"Chromedriver is ready at: {driver_executable_path}")
         return driver_executable_path
