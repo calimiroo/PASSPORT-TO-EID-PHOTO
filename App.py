@@ -161,14 +161,11 @@ def create_card_image(data, size=(5760, 2700)):
     label_font_size = 95
     value_font_size = 85
     
-    # استخدم خط Arial الذي يدعم العربية والإنجليزية
     try:
-        # استخدمنا خط Arial العادي والمائل (Bold)
         title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
         label_font = ImageFont.truetype("arial.ttf", label_font_size)
         value_font = ImageFont.truetype("arial.ttf", value_font_size)
     except IOError:
-        # في حال عدم العثور على الخط، استخدم الخط الافتراضي
         logger.warning("Arial font not found. Using default font. Arabic text might not render correctly.")
         title_font = ImageFont.load_default()
         label_font = ImageFont.load_default()
@@ -220,19 +217,18 @@ def create_card_image(data, size=(5760, 2700)):
         if key in ['EID Expire Date']:
             value = format_date(value)
         
-        # إعادة تشكيل النص العربي قبل عرضه
         value_display = reshape_arabic(str(value))
         
         draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
         
-        # تحديد اتجاه النص (يمين لليسار للعربي)
-        text_anchor = "ra" if arabic_reshaper.is_arabic_string(str(value)) else "la"
+        # --- الكود المصحح هنا ---
+        is_arabic = any('\u0600' <= char <= '\u06FF' for char in str(value))
+        text_anchor = "ra" if is_arabic else "la"
         
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
         
         line_y = y
         for line in wrapped_lines:
-            # تحديد موقع النص بناءً على اتجاهه
             if text_anchor == "ra":
                 draw.text((x_value + max_value_width, line_y), line, fill=(0, 0, 100), font=value_font, anchor=text_anchor)
             else:
@@ -545,4 +541,7 @@ with tab2:
         df_show.index = range(1, len(df_show) + 1)
         st.write(f"Total records: {len(df_original)}")
         st.dataframe(df_show, height=150, use_container_width=True)
-        col_ctrl1, col_ctrl2, col_ctrl3
+        col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
+        if col_ctrl1.button("▶️ Start / Resume"):
+            st.session_state.run_state = 'running'
+            if st.session
