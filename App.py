@@ -185,7 +185,6 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
-    # --- الحل الجذري هنا ---
     def setup_driver(self ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
@@ -193,35 +192,18 @@ class ICPScraper:
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
-        options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
-        options.add_experimental_option("useAutomationExtension", False)
         
-        # تحديد مسار المتصفح في بيئة Streamlit Cloud
-        if os.path.exists("/usr/bin/chromium-browser"):
-            options.binary_location = "/usr/bin/chromium-browser"
-
         try:
-            logger.info("Downloading and installing a compatible chromedriver...")
-            # 1. تنزيل المحرك والحصول على مساره الصريح
-            driver_path = ChromeDriverManager().install()
-            logger.info(f"Chromedriver downloaded to: {driver_path}")
-            
-            # 2. إنشاء الخدمة باستخدام المسار الصريح للمحرك
-            service = Service(executable_path=driver_path)
-            
-            # 3. تشغيل المتصفح
+            logger.info("Setting up WebDriver for Streamlit Cloud...")
+            # لا نحدد مسار المتصفح، Selenium سيكتشفه تلقائيًا بفضل packages.txt
+            service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=options)
-            self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
             self.wait = WebDriverWait(self.driver, 30)
-            logger.info("WebDriver setup successful using explicit driver path.")
+            logger.info("WebDriver setup successful.")
         except Exception as e:
             logger.error(f"Failed to create WebDriver session: {e}")
             st.error(f"Could not start browser session. Please check logs. Error: {e}")
             st.stop()
-    # --- نهاية التعديل ---
 
     def safe_clear_and_fill(self, element, value):
         element.send_keys(Keys.CONTROL + "a", Keys.BACKSPACE)
