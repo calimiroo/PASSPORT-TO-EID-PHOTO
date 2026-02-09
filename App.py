@@ -566,7 +566,9 @@ with tab1:
     with col2:
         nationality = st.selectbox("Nationality", countries_list, key="nationality")
     with col3:
-        dob = st.date_input("Date of Birth", value=None, format="DD/MM/YYYY", key="dob")
+        min_dob = datetime(1900, 1, 1)
+        max_dob = datetime.now().date()
+        dob = st.date_input("Date of Birth", value=None, format="DD/MM/YYYY", key="dob", min_value=min_dob, max_value=max_dob)
     
     gender = st.radio("Gender", ["Male", "Female"], horizontal=True, key="gender")
     
