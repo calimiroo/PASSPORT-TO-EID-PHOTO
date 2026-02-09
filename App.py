@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 import base64
 import arabic_reshaper
 from bidi.algorithm import get_display
+import os
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,25 +25,15 @@ logger = logging.getLogger(__name__)
 # --- Page Setup ---
 st.set_page_config(page_title="ICP Data Search", layout="wide")
 
-# --- Password Protection (Simple Start Page) ---
+# --- Password Protection ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.markdown("""
         <style>
-        .big-title {
-            font-size: 3.5rem;
-            text-align: center;
-            margin-top: 100px;
-            color: #0d47a1;
-        }
-        .password-box {
-            max-width: 400px;
-            margin: 0 auto;
-            text-align: center;
-            margin-top: 50px;
-        }
+        .big-title { font-size: 3.5rem; text-align: center; margin-top: 100px; color: #0d47a1; }
+        .password-box { max-width: 400px; margin: 0 auto; text-align: center; margin-top: 50px; }
         </style>
     """, unsafe_allow_html=True)
     
@@ -69,34 +60,18 @@ if not st.session_state.authenticated:
 # --- Main Application ---
 st.title("H-TRACING (ICP)")
 
-# --- Improve table appearance ---
 st.markdown("""
     <style>
-    .stTable td, .stTable th {
-        white-space: nowrap !important;
-        text-align: left !important;
-        padding: 8px 15px !important;
-    }
-    .stTable {
-        display: block !important;
-        overflow-x: auto !important;
-    }
+    .stTable td, .stTable th { white-space: nowrap !important; text-align: left !important; padding: 8px 15px !important; }
+    .stTable { display: block !important; overflow-x: auto !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- Session State Management ---
-if 'run_state' not in st.session_state:
-    st.session_state.run_state = 'stopped'
-if 'batch_results' not in st.session_state:
-    st.session_state.batch_results = []
-if 'start_time_ref' not in st.session_state:
-    st.session_state.start_time_ref = None
-if 'single_result' not in st.session_state:
-    st.session_state.single_result = None
-if 'card_enlarged' not in st.session_state:
-    st.session_state.card_enlarged = False
+for key in ['run_state', 'batch_results', 'start_time_ref', 'single_result', 'card_enlarged']:
+    if key not in st.session_state:
+        st.session_state[key] = 'stopped' if key == 'run_state' else [] if key == 'batch_results' else None if key in ['start_time_ref', 'single_result'] else False
 
-# List of nationalities
 countries_list = ["Select Nationality", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"]
 
 def format_time(seconds):
@@ -116,40 +91,31 @@ def apply_styling(df):
     return df.style.applymap(color_status, subset=['Status'])
 
 def reshape_arabic(text):
-    if text and any('\u0600' <= c <= '\u06FF' for c in text):
-        reshaped_text = arabic_reshaper.reshape(text)
+    if text and any('\u0600' <= c <= '\u06FF' for c in str(text)):
+        reshaped_text = arabic_reshaper.reshape(str(text))
         return get_display(reshaped_text)
-    return text
+    return str(text)
 
 def format_date(date_str):
-    if not date_str:
-        return ''
-    if 'T' in date_str:
-        date_str = date_str.split('T')[0]
+    if not date_str: return ''
+    if 'T' in date_str: date_str = date_str.split('T')[0]
     try:
-        parsed = datetime.strptime(date_str.strip(), '%Y-%m-%d')
-        return parsed.strftime('%d/%m/%Y')
+        return datetime.strptime(date_str.strip(), '%Y-%m-%d').strftime('%d/%m/%Y')
     except:
-        try:
-            parsed = datetime.strptime(date_str.strip(), '%d/%m/%Y')
-            return date_str.strip()
-        except:
-            return date_str
-    return date_str
+        return date_str
 
 def wrap_text(draw, text, font, max_width):
     lines = []
-    if not text:
-        return lines
+    if not text: return lines
     words = text.split(' ')
     current_line = ''
     for word in words:
-        test_line = current_line + word + ' '
+        test_line = f"{current_line}{word} "
         if draw.textlength(test_line, font=font) <= max_width:
             current_line = test_line
         else:
             lines.append(current_line.strip())
-            current_line = word + ' '
+            current_line = f"{word} "
     if current_line:
         lines.append(current_line.strip())
     return lines
@@ -157,9 +123,7 @@ def wrap_text(draw, text, font, max_width):
 def create_card_image(data, size=(5760, 2700)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
-    title_font_size = 130
-    label_font_size = 95
-    value_font_size = 85
+    title_font_size, label_font_size, value_font_size = 130, 95, 85
     
     try:
         title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
@@ -167,87 +131,59 @@ def create_card_image(data, size=(5760, 2700)):
         value_font = ImageFont.truetype("arial.ttf", value_font_size)
     except IOError:
         logger.warning("Arial font not found. Using default font. Arabic text might not render correctly.")
-        title_font = ImageFont.load_default()
-        label_font = ImageFont.load_default()
-        value_font = ImageFont.load_default()
+        title_font, label_font, value_font = [ImageFont.load_default(size) for size in [title_font_size, label_font_size, value_font_size]]
 
     draw.rectangle([(0, 0), (size[0], 150)], fill=(218, 165, 32))
     draw.text((120, 40), "H-TRACING", fill=(0, 0, 139), font=title_font)
 
-    photo_x, photo_y = 180, 320
-    photo_size = (950, 950)
-    draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
-                   outline=(80, 80, 80), width=10, fill=(230, 230, 230))
+    photo_x, photo_y, photo_size = 180, 320, (950, 950)
+    draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])], outline=(80, 80, 80), width=10, fill=(230, 230, 230))
 
-    if 'Photo' in data and data['Photo']:
+    if data.get('Photo'):
         try:
             photo_bytes = base64.b64decode(data['Photo'].split(',')[1])
-            personal_photo = Image.open(io.BytesIO(photo_bytes))
-            personal_photo = personal_photo.resize(photo_size, Image.LANCZOS)
+            personal_photo = Image.open(io.BytesIO(photo_bytes)).resize(photo_size, Image.LANCZOS)
             img.paste(personal_photo, (photo_x, photo_y))
         except Exception as e:
             logger.warning(f"Failed to load personal photo: {e}")
-            draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
-                      fill=(120, 120, 120), font=title_font, align="center")
+            draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "PHOTO\nNOT\nFOUND", fill=(120, 120, 120), font=title_font, align="center")
     else:
-        draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
-                  fill=(120, 120, 120), font=title_font, align="center")
+        draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "PHOTO\nNOT\nFOUND", fill=(120, 120, 120), font=title_font, align="center")
 
-    x_label = photo_x + photo_size[0] + 250
-    x_value = x_label + 1600
-    y_start = 350
-    line_height = 135
+    x_label, x_value, y, line_height = photo_x + photo_size[0] + 250, photo_x + photo_size[0] + 1850, 350, 135
+    max_value_width = size[0] - x_value - 200
+    
     fields = [
-        ("English Name:", 'English Name'),
-        ("Arabic Name:", 'Arabic Name'),
-        ("Unified Number:", 'Unified Number'),
-        ("EID Number:", 'EID Number'),
-        ("EID Expire Date:", 'EID Expire Date'),
-        ("Visa Issue Place:", 'Visa Issue Place'),
-        ("Profession:", 'Profession'),
-        ("English Sponsor Name:", 'English Sponsor Name'),
-        ("Arabic Sponsor Name:", 'Arabic Sponsor Name'),
+        ("English Name:", 'English Name'), ("Arabic Name:", 'Arabic Name'), ("Unified Number:", 'Unified Number'),
+        ("EID Number:", 'EID Number'), ("EID Expire Date:", 'EID Expire Date'), ("Visa Issue Place:", 'Visa Issue Place'),
+        ("Profession:", 'Profession'), ("English Sponsor Name:", 'English Sponsor Name'), ("Arabic Sponsor Name:", 'Arabic Sponsor Name'),
         ("Related Individuals:", 'Related Individuals')
     ]
 
-    y = y_start
-    max_value_width = size[0] - x_value - 200
     for label_text, key in fields:
         value = data.get(key, '')
-        if key in ['EID Expire Date']:
-            value = format_date(value)
+        if key == 'EID Expire Date': value = format_date(value)
         
-        value_display = reshape_arabic(str(value))
-        
+        value_display = reshape_arabic(value)
         draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
         
-        # --- الكود المصحح هنا ---
         is_arabic = any('\u0600' <= char <= '\u06FF' for char in str(value))
         text_anchor = "ra" if is_arabic else "la"
         
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
-        
         line_y = y
         for line in wrapped_lines:
-            if text_anchor == "ra":
-                draw.text((x_value + max_value_width, line_y), line, fill=(0, 0, 100), font=value_font, anchor=text_anchor)
-            else:
-                draw.text((x_value, line_y), line, fill=(0, 0, 100), font=value_font, anchor=text_anchor)
+            draw.text((x_value + max_value_width if is_arabic else x_value, line_y), line, fill=(0, 0, 100), font=value_font, anchor=text_anchor)
             line_y += line_height // 1.8
-        
         y += line_height * max(1, len(wrapped_lines))
-
 
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=98)
-    buffer.seek(0)
-    return buffer
+    return buffer.getvalue()
 
 class ICPScraper:
     def __init__(self):
-        self.driver = None
-        self.wait = None
-        self.url = "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
+        self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
     def setup_driver(self ):
         options = webdriver.ChromeOptions()
@@ -262,43 +198,31 @@ class ICPScraper:
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
         
-        import os
-        chrome_bin = "/usr/bin/chromium"
-        if not os.path.exists(chrome_bin):
-            chrome_bin = "/usr/bin/chromium-browser"
-            
-        if os.path.exists(chrome_bin):
-            options.binary_location = chrome_bin
-            service = Service("/usr/bin/chromedriver") if os.path.exists("/usr/bin/chromedriver") else Service(ChromeDriverManager().install())
+        if os.path.exists("/usr/bin/chromium-browser"):
+            options.binary_location = "/usr/bin/chromium-browser"
+            service = Service("/usr/bin/chromedriver")
         else:
             service = Service(ChromeDriverManager().install())
         
         self.driver = webdriver.Chrome(service=service, options=options)
-        
-        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-            "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        })
-        
+        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
         self.wait = WebDriverWait(self.driver, 30)
 
     def safe_clear_and_fill(self, element, value):
-        element.send_keys(Keys.CONTROL + "a")
-        element.send_keys(Keys.BACKSPACE)
+        element.send_keys(Keys.CONTROL + "a", Keys.BACKSPACE)
         time.sleep(0.5)
         element.send_keys(str(value))
 
     def select_from_dropdown(self, label_name, search_value):
         try:
-            dropdown_xpath = f"//label[contains(text(),'{label_name}')]/following::div[contains(@class,'ui-select-container')][1]"
-            container = self.wait.until(EC.element_to_be_clickable((By.XPATH, dropdown_xpath)))
+            container = self.wait.until(EC.element_to_be_clickable((By.XPATH, f"//label[contains(text(),'{label_name}')]/following::div[contains(@class,'ui-select-container')][1]")))
             self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", container)
             container.click()
             time.sleep(1)
             search_input = self.wait.until(EC.visibility_of_element_located((By.XPATH, f"//label[contains(text(),'{label_name}')]/following::input[not(@type='hidden')][1]")))
             self.safe_clear_and_fill(search_input, search_value)
             time.sleep(2)
-            result_xpath = f"//div[contains(@class,'ui-select-choices')]//span[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{str(search_value).lower()}')]"
-            result_item = self.wait.until(EC.element_to_be_clickable((By.XPATH, result_xpath)))
+            result_item = self.wait.until(EC.element_to_be_clickable((By.XPATH, f"//div[contains(@class,'ui-select-choices')]//span[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{str(search_value).lower()}')]")))
             self.driver.execute_script("arguments[0].click();", result_item)
             time.sleep(1)
         except Exception as e:
@@ -308,84 +232,47 @@ class ICPScraper:
         logger.info(" [>] Analyzing Network logs...")
         time.sleep(20)
         try:
-            logs = self.driver.get_log('performance')
-            for entry in reversed(logs):
+            for entry in reversed(self.driver.get_log('performance')):
                 message = json.loads(entry['message'])['message']
                 if 'Network.responseReceived' in message['method']:
-                    params = message.get('params', {})
-                    request_id = params.get('requestId')
+                    request_id = message.get('params', {}).get('requestId')
                     try:
-                        resp_obj = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
-                        body = resp_obj['body']
-                        if 'isValid' in body:
-                            data = json.loads(body)
-                            if 'isValid' in data:
-                                if data['isValid']:
-                                    personal_info = data.get('personalInfo', {})
-                                    info = personal_info[0] if isinstance(personal_info, list) and personal_info else personal_info
-                                    return {
-                                        'English Name': info.get('englishFullName'),
-                                        'Arabic Name': info.get('arabicFullName'),
-                                        'Unified Number': info.get('unifiedNumber'),
-                                        'EID Number': info.get('identityNumber'),
-                                        'EID Expire Date': info.get('identityExpireDate'),
-                                        'Visa Issue Place': info.get('englishIdentityIssuePlace'),
-                                        'Profession': info.get('englishProfession'),
-                                        'English Sponsor Name': info.get('englishSponsorName'),
-                                        'Arabic Sponsor Name': info.get('arabicSponsorName'),
-                                        'Status': 'Found'
-                                    }
-                                elif data['isValid'] is False:
-                                    return {'Status': 'Not Found'}
-                    except:
-                        continue
+                        body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})['body']
+                        data = json.loads(body)
+                        if data.get('isValid'):
+                            info = data.get('personalInfo', [{}])[0]
+                            return {
+                                'English Name': info.get('englishFullName'), 'Arabic Name': info.get('arabicFullName'),
+                                'Unified Number': info.get('unifiedNumber'), 'EID Number': info.get('identityNumber'),
+                                'EID Expire Date': info.get('identityExpireDate'), 'Visa Issue Place': info.get('englishIdentityIssuePlace'),
+                                'Profession': info.get('englishProfession'), 'English Sponsor Name': info.get('englishSponsorName'),
+                                'Arabic Sponsor Name': info.get('arabicSponsorName'), 'Status': 'Found'
+                            }
+                        elif data.get('isValid') is False:
+                            return {'Status': 'Not Found'}
+                    except: continue
         except Exception as e:
             logger.error(f"Capture Error: {e}")
         return {'Status': 'Not Found'}
 
     def extract_qr_url(self):
-        self.driver.execute_script("""
-            if (typeof jsQR === 'undefined') {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
-                document.head.appendChild(script );
-            }
-        """)
+        self.driver.execute_script("if (typeof jsQR === 'undefined') { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'; document.head.appendChild(script ); }")
         time.sleep(3)
-        qr_url = self.driver.execute_async_script("""
+        return self.driver.execute_async_script("""
             const callback = arguments[arguments.length - 1];
-            const extractQR = async () => {
-                const getQR = () => {
-                    let c = document.querySelector('canvas');
-                    if (c) return c;
-                    let i = document.querySelectorAll('img');
-                    for (let img of i) {
-                        if (img.src && (img.src.includes('data:image') || img.src.includes('blob') || img.src.includes('qr'))) return img;
-                    }
-                    return null;
-                };
-                const el = getQR();
-                if (!el) return null;
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                const img = new Image();
-                img.crossOrigin = "Anonymous";
-                img.src = el.toDataURL ? el.toDataURL() : el.src;
-                return new Promise((resolve) => {
-                    img.onload = () => {
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        context.drawImage(img, 0, 0);
-                        const imageData = context.getImageData(0, 0, img.width, img.height);
-                        const code = jsQR(imageData.data, imageData.width, imageData.height);
-                        resolve(code ? code.data : null);
-                    };
-                    img.onerror = () => resolve(null);
-                });
+            const el = document.querySelector('canvas') || document.querySelector('img[src*="data:image"]');
+            if (!el) return callback(null);
+            const canvas = document.createElement('canvas'), context = canvas.getContext('2d'), img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.src = el.tagName === 'CANVAS' ? el.toDataURL() : el.src;
+            img.onload = () => {
+                canvas.width = img.width; canvas.height = img.height;
+                context.drawImage(img, 0, 0);
+                const code = jsQR(context.getImageData(0, 0, img.width, img.height).data, img.width, img.height);
+                callback(code ? code.data : null);
             };
-            extractQR().then(callback);
+            img.onerror = () => callback(null);
         """)
-        return qr_url
 
     def perform_single_search(self, passport_number, nationality, date_of_birth, gender):
         self.setup_driver()
@@ -393,65 +280,35 @@ class ICPScraper:
             self.driver.get(self.url)
             logger.info(f"[*] Processing Passport: {passport_number}")
             time.sleep(3)
-            self.driver.execute_script("""
-                var radio = document.querySelector('input[value="personalInfo"]') || document.querySelector('input[ng-value="0"]');
-                if(radio) {
-                    radio.click();
-                    radio.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            """)
+            self.driver.execute_script("document.querySelector('input[value=\"personalInfo\"]').click();")
             time.sleep(2)
             self.select_from_dropdown('Current Nationality', nationality)
             self.select_from_dropdown('Passport Type', 'ORDINARY PASSPORT')
-            ppt_field = self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(),'Passport Number')]/following::input[1]")))
-            self.safe_clear_and_fill(ppt_field, passport_number)
-            dob_formatted = pd.to_datetime(date_of_birth, dayfirst=True).strftime('%d/%m/%Y')
+            self.safe_clear_and_fill(self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(),'Passport Number')]/following::input[1]"))), passport_number)
             dob_field = self.driver.find_element(By.XPATH, "//label[contains(text(),'Date of Birth')]/following::input[1]")
-            self.safe_clear_and_fill(dob_field, dob_formatted)
+            self.safe_clear_and_fill(dob_field, pd.to_datetime(date_of_birth, dayfirst=True).strftime('%d/%m/%Y'))
             dob_field.send_keys(Keys.TAB)
             gender_field = self.driver.find_element(By.XPATH, "//label[contains(text(),'Gender')]/following::input[1]")
             self.safe_clear_and_fill(gender_field, gender)
             gender_field.send_keys(Keys.TAB)
-            related_field = self.driver.find_element(By.XPATH, "//label[contains(text(),'related to your file')]/following::input[1]")
-            result = {'Status': 'Not Found'}
-            related_count = 0
-            logger.info("Trying related count: 0")
-            related_field = self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(),'related to your file')]/following::input[1]")))
-            related_field.clear()
-            related_field.send_keys("0")
-            related_field.send_keys(Keys.TAB)
-            time.sleep(1)
-            search_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[ng-click='search()']")))
-            self.driver.execute_script("arguments[0].removeAttribute('disabled'); arguments[0].classList.remove('disabled'); arguments[0].click();", search_button)
-            time.sleep(5)
-            temp_result = self.capture_network_data()
-            if temp_result.get('Status') == 'Found':
-                result = temp_result
-                related_count = 0
-            else:
-                for rc in range(1, 6):
-                    logger.info(f"Trying related count: {rc}")
-                    related_field.clear()
-                    related_field.send_keys(str(rc))
-                    related_field.send_keys(Keys.TAB)
-                    time.sleep(1)
-                    search_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[ng-click='search()']")))
-                    self.driver.execute_script("arguments[0].removeAttribute('disabled'); arguments[0].classList.remove('disabled'); arguments[0].click();", search_button)
-                    time.sleep(5)
-                    temp_result = self.capture_network_data()
-                    if temp_result.get('Status') == 'Found':
-                        result = temp_result
-                        related_count = rc
-                        break
+            
+            result, related_count = {'Status': 'Not Found'}, 0
+            for rc in range(6):
+                logger.info(f"Trying related count: {rc}")
+                related_field = self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(),'related to your file')]/following::input[1]")))
+                self.safe_clear_and_fill(related_field, str(rc))
+                related_field.send_keys(Keys.TAB)
+                time.sleep(1)
+                search_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[ng-click='search()']")))
+                self.driver.execute_script("arguments[0].click();", search_button)
+                time.sleep(5)
+                temp_result = self.capture_network_data()
+                if temp_result.get('Status') == 'Found':
+                    result, related_count = temp_result, rc
+                    break
+            
             if result.get('Status') == 'Found':
-                result['Related Individuals'] = str(related_count)
-                if 'EID Expire Date' in result:
-                    result['EID Expire Date'] = format_date(result['EID Expire Date'])
-                if 'Date of Birth' in result:
-                    result['Date of Birth'] = format_date(result['Date of Birth'])
-                result['Passport Number'] = passport_number
-                result['Nationality'] = nationality
-                result['Gender'] = gender
+                result.update({'Related Individuals': str(related_count), 'Passport Number': passport_number, 'Nationality': nationality, 'Gender': gender})
                 qr_url = self.extract_qr_url()
                 if qr_url:
                     logger.info(f"Extracted QR URL: {qr_url}")
@@ -460,15 +317,8 @@ class ICPScraper:
                     try:
                         photo_elements = self.driver.find_elements(By.CSS_SELECTOR, 'img[src^="data:image"]')
                         if photo_elements:
-                            photo_element = max(photo_elements, key=lambda el: len(el.get_attribute('src') or ''))
-                            photo_src = photo_element.get_attribute('src')
-                            if photo_src and 'base64' in photo_src:
-                                result['Photo'] = photo_src
-                                logger.info("Personal photo extracted successfully (longest base64 selected).")
-                            else:
-                                logger.warning("Found data:image but no valid base64.")
-                        else:
-                            logger.warning("No data:image/img elements found on the digital card page.")
+                            result['Photo'] = max(photo_elements, key=lambda el: len(el.get_attribute('src') or '')).get_attribute('src')
+                            logger.info("Personal photo extracted.")
                     except Exception as e:
                         logger.warning(f"Failed to extract personal photo: {e}")
             return result
@@ -476,12 +326,12 @@ class ICPScraper:
             logger.error(f"Error during search: {e}")
             return {'Passport Number': passport_number, 'Nationality': nationality, 'Date of Birth': date_of_birth, 'Gender': gender, 'Status': 'Error'}
         finally:
-            if self.driver:
-                self.driver.quit()
+            if self.driver: self.driver.quit()
 
 def toggle_card():
     st.session_state.card_enlarged = not st.session_state.card_enlarged
 
+# --- UI Tabs ---
 tab1, tab2 = st.tabs(["Single Search", "Upload Excel File"])
 
 with tab1:
@@ -493,55 +343,67 @@ with tab1:
     g_in = st.radio("Gender", options=["Male", "Female"], index=0, key="s_g")
    
     col_btn1, col_btn_stop, col_btn2 = st.columns(3)
-    with col_btn1:
-        if st.button("Search Now", key="single_search_button"):
-            if p_in and n_in != "Select Nationality" and d_in:
-                with st.spinner("Searching..."):
-                    scraper = ICPScraper()
-                    gender_value = "1" if g_in == "Male" else "0"
-                    res = scraper.perform_single_search(p_in, n_in, d_in.strftime("%d/%m/%Y"), gender_value)
-                    st.session_state.single_result = res or None
+    if col_btn1.button("Search Now", key="single_search_button"):
+        if p_in and n_in != "Select Nationality" and d_in:
+            with st.spinner("Searching..."):
+                st.session_state.single_result = ICPScraper().perform_single_search(p_in, n_in, d_in.strftime("%d/%m/%Y"), "1" if g_in == "Male" else "0")
    
-    with col_btn_stop:
-        if st.button("🛑 Stop", key="stop_single_search"):
-            st.session_state.single_result = None
-            st.rerun()
+    if col_btn_stop.button("🛑 Stop", key="stop_single_search") or col_btn2.button("Clear", key="clear_button"):
+        st.session_state.single_result = None
+        st.rerun()
    
-    with col_btn2:
-        if st.button("Clear", key="clear_button"):
-            st.session_state.single_result = None
-            st.rerun()
-   
-    single_table_area = st.empty()
-    card_image_area = st.empty()
     if st.session_state.single_result:
-        displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
-                            'EID Expire Date', 'Visa Issue Place', 'Profession',
-                            'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
-        filtered_df = pd.DataFrame([{k: v for k, v in st.session_state.single_result.items() if k in displayed_fields}])
-        single_table_area.table(apply_styling(filtered_df))
+        df = pd.DataFrame([st.session_state.single_result])
+        st.table(apply_styling(df[['English Name', 'Arabic Name', 'Unified Number', 'EID Number', 'EID Expire Date', 'Visa Issue Place', 'Profession', 'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']]))
         if st.session_state.single_result.get('Status') == 'Found':
             card_buffer = create_card_image(st.session_state.single_result)
-            card_width = 1400 if st.session_state.card_enlarged else 700
-            card_image_area.image(card_buffer, caption="Generated Card (Preview)", width=card_width)
-            st.button("Enlarge Card" if not st.session_state.card_enlarged else "Shrink Card", on_click=toggle_card)
-            st.download_button(
-                label="📥 Download Card",
-                data=card_buffer,
-                file_name=f"card_{st.session_state.single_result.get('Unified Number', 'unknown')}.jpg",
-                mime="image/jpeg"
-            )
+            st.image(card_buffer, caption="Generated Card", width=1400 if st.session_state.card_enlarged else 700)
+            st.button("Enlarge/Shrink Card", on_click=toggle_card)
+            st.download_button("📥 Download Card", card_buffer, f"card_{st.session_state.single_result.get('Unified Number', 'unknown')}.jpg", "image/jpeg")
 
 with tab2:
     st.subheader("Batch Processing Control")
     uploaded_file = st.file_uploader("Upload Excel", type=["xlsx"])
     if uploaded_file:
         df_original = pd.read_excel(uploaded_file)
-        df_show = df_original.copy()
-        df_show.index = range(1, len(df_show) + 1)
         st.write(f"Total records: {len(df_original)}")
-        st.dataframe(df_show, height=150, use_container_width=True)
+        st.dataframe(df_original, height=150, use_container_width=True)
+        
         col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
         if col_ctrl1.button("▶️ Start / Resume"):
             st.session_state.run_state = 'running'
-            if st.session
+            if st.session_state.start_time_ref is None: st.session_state.start_time_ref = time.time()
+        if col_ctrl2.button("⏸️ Pause"): st.session_state.run_state = 'paused'
+        if col_ctrl3.button("⏹️ Stop & Reset"):
+            st.session_state.run_state, st.session_state.batch_results, st.session_state.start_time_ref = 'stopped', [], None
+            st.rerun()
+
+        if st.session_state.run_state == 'running':
+            progress_bar = st.progress(0)
+            status_text, stats_area, live_table_area = st.empty(), st.empty(), st.empty()
+            
+            for i, row in df_original.iterrows():
+                if st.session_state.run_state == 'stopped': break
+                while st.session_state.run_state == 'paused':
+                    status_text.warning("Paused...")
+                    time.sleep(1)
+                
+                if i < len(st.session_state.batch_results): continue
+
+                p_num, nat, dob, gender = str(row.get('Passport Number', '')).strip(), str(row.get('Nationality', 'Egypt')).strip(), str(row.get('Date of Birth', '')), str(row.get('Gender', '1')).strip()
+                status_text.info(f"Processing {i+1}/{len(df_original)}: {p_num}")
+                
+                res = ICPScraper().perform_single_search(p_num, nat, dob, gender)
+                st.session_state.batch_results.append(res)
+                
+                elapsed = time.time() - (st.session_state.start_time_ref or time.time())
+                success_count = sum(1 for item in st.session_state.batch_results if item.get("Status") == "Found")
+                stats_area.markdown(f"✅ **Success:** {success_count} | ⏱️ **Time:** {format_time(elapsed)}")
+                
+                df_results = pd.DataFrame(st.session_state.batch_results)
+                live_table_area.table(apply_styling(df_results[['English Name', 'Arabic Name', 'Unified Number', 'EID Number', 'EID Expire Date', 'Visa Issue Place', 'Profession', 'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']]))
+                progress_bar.progress((i + 1) / len(df_original))
+
+            if len(st.session_state.batch_results) == len(df_original):
+                st.success("Search Finished!")
+                st.download_button("📥 Download Results", to_excel(pd.DataFrame(st.session_state.batch_results)), f"results_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
