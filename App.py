@@ -14,6 +14,34 @@ from webdriver_manager.chrome import ChromeDriverManager
 import io
 from PIL import Image, ImageDraw, ImageFont
 import base64
+import os
+import tempfile
+
+# --- Font Setup Function ---
+def get_font_path(font_name):
+    """
+    Returns the path to a font file. On Streamlit Cloud, it will look for fonts in the temp directory.
+    """
+    # Define common font names for different OS
+    possible_names = {
+        "arialbd.ttf": ["arialbd.ttf", "Arial_Bold.ttf", "Arial Bold.ttf"],
+        "arial.ttf": ["arial.ttf", "Arial.ttf"]
+    }
+
+    # First, check if the font exists in the current working directory
+    for name in possible_names.get(font_name, [font_name]):
+        if os.path.exists(name):
+            return name
+
+    # Then, check in the temporary directory where we might have placed our own fonts
+    temp_dir = tempfile.gettempdir()
+    temp_font_path = os.path.join(temp_dir, font_name)
+    if os.path.exists(temp_font_path):
+        return temp_font_path
+
+    # As a last resort, try to load default fonts (this is fallback)
+    return None
+
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -164,17 +192,41 @@ def create_card_image(data, size=(5760, 2700)):
     title_font_size = 130
     label_font_size = 95
     value_font_size = 85
+    # Use the new font loading function
+    title_font_path = get_font_path("arialbd.ttf")
+    label_font_path = get_font_path("arial.ttf")
+    value_font_path = get_font_path("arial.ttf")
+
     try:
-        title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
-        label_font = ImageFont.truetype("arial.ttf", label_font_size)
-        value_font = ImageFont.truetype("arial.ttf", value_font_size)
+        if title_font_path:
+            title_font = ImageFont.truetype(title_font_path, title_font_size)
+        else:
+            title_font = ImageFont.truetype("arial.ttf", title_font_size)
     except:
         try:
-            title_font = ImageFont.truetype("arial.ttf", title_font_size)
+            if label_font_path:
+                title_font = ImageFont.truetype(label_font_path, title_font_size)
+            else:
+                title_font = ImageFont.truetype("arial.ttf", title_font_size)
         except:
             title_font = ImageFont.load_default()
+
+    try:
+        if label_font_path:
+            label_font = ImageFont.truetype(label_font_path, label_font_size)
+        else:
+            label_font = ImageFont.truetype("arial.ttf", label_font_size)
+    except:
         label_font = ImageFont.load_default()
+
+    try:
+        if value_font_path:
+            value_font = ImageFont.truetype(value_font_path, value_font_size)
+        else:
+            value_font = ImageFont.truetype("arial.ttf", value_font_size)
+    except:
         value_font = ImageFont.load_default()
+
 
     draw.rectangle([(0, 0), (size[0], 150)], fill=(218, 165, 32))
     draw.text((120, 40), "H-TRACING", fill=(0, 0, 139), font=title_font)
@@ -238,7 +290,7 @@ class ICPScraper:
     def __init__(self):
         self.driver = None
         self.wait = None
-        self.url = "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
+        self.url = "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode  "
 
     def setup_driver(self):
         options = webdriver.ChromeOptions()
@@ -341,7 +393,7 @@ class ICPScraper:
         self.driver.execute_script("""
             if (typeof jsQR === 'undefined') {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js  ';
                 document.head.appendChild(script);
             }
         """)
