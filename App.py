@@ -13,6 +13,7 @@ from selenium.webdriver.chrome.service import Service
 # سنستخدم هذه المكتبات للتنزيل اليدوي
 import requests
 import zipfile
+import io
 import os
 import stat
 
@@ -183,31 +184,51 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
-    # --- الحل الجذري والنهائي ---
+    @staticmethod
     @st.cache_resource
     def get_driver_path( ):
         logger.info("Downloading and setting up a compatible chromedriver...")
-        # تحديد الإصدار المطلوب (يجب أن يكون متوافقًا مع Chrome 144)
-        # للأسف، لا يوجد إصدار رسمي لـ 144 بعد، سنستخدم أحدث إصدار مستقر متاح
-        # يمكنك تغيير هذا الرقم في المستقبل إذا لزم الأمر
-        chrome_version = "121.0.6167.85" # مثال لأحدث إصدار مستقر
-        driver_url = f"https://storage.googleapis.com/chrome-for-testing-public/{chrome_version}/linux64/chromedriver-linux64.zip"
-        driver_zip_path = "/tmp/chromedriver.zip"
-        driver_dir_path = "/tmp/chromedriver-linux64"
-        driver_executable_path = os.path.join(driver_dir_path, "chromedriver" )
+        # --- التعديل هنا ---
+        # استخدام أحدث إصدار معروف من JSON API للعثور على الإصدار الصحيح لـ 144
+        # هذا الرابط يجلب آخر إصدار معروف ومستقر
+        api_url = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+        response = requests.get(api_url )
+        data = response.json()
+        # البحث عن الإصدار الذي يبدأ بـ 144، أو استخدام أحدث إصدار مستقر كبديل
+        driver_url = None
+        stable_channel = data['channels']['Stable']
+        # سنستخدم الإصدار المستقر كأفضل خيار
+        downloads = stable_channel['downloads']['chromedriver']
+        for item in downloads:
+            if item['platform'] == 'linux64':
+                driver_url = item['url']
+                logger.info(f"Found stable chromedriver URL: {driver_url}")
+                break
+        
+        if not driver_url:
+            raise Exception("Could not find a suitable chromedriver download URL for linux64.")
+        # --- نهاية التعديل ---
 
+        driver_zip_path = "/tmp/chromedriver.zip"
+        driver_dir_path = "/tmp/chromedriver-linux64" # المسار قد يختلف بناءً على الملف
+        
         # تنزيل الملف
         response = requests.get(driver_url, stream=True)
         if response.status_code == 200:
             with open(driver_zip_path, "wb") as f:
                 f.write(response.content)
         else:
-            raise Exception(f"Failed to download chromedriver version {chrome_version}")
+            raise Exception(f"Failed to download chromedriver from {driver_url}")
 
         # فك الضغط
         with zipfile.ZipFile(driver_zip_path, "r") as zip_ref:
+            # استخراج الملفات وتحديد المسار الصحيح للملف التنفيذي
+            file_list = zip_ref.namelist()
+            # عادة ما يكون الملف التنفيذي داخل مجلد
+            executable_name = [name for name in file_list if name.endswith('chromedriver')][0]
             zip_ref.extractall("/tmp")
-        
+            driver_executable_path = os.path.join("/tmp", executable_name)
+
         # إعطاء صلاحيات التنفيذ
         os.chmod(driver_executable_path, stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         
@@ -223,7 +244,6 @@ class ICPScraper:
         options.add_argument("--disable-dev-shm-usage")
         
         try:
-            # استخدام الدالة التي تقوم بالتنزيل اليدوي
             driver_path = ICPScraper.get_driver_path()
             service = Service(executable_path=driver_path)
             
