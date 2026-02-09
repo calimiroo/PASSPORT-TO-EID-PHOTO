@@ -185,6 +185,7 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
+    # --- الكود الصحيح هنا ---
     def setup_driver(self ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
@@ -198,15 +199,24 @@ class ICPScraper:
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
         
+        # تحديد مسار المتصفح في بيئة Streamlit Cloud
         if os.path.exists("/usr/bin/chromium-browser"):
             options.binary_location = "/usr/bin/chromium-browser"
-            service = Service("/usr/bin/chromedriver")
-        else:
+
+        try:
+            logger.info("Setting up WebDriver using ChromeDriverManager to install a compatible driver...")
+            # استخدام webdriver-manager لتنزيل المحرك المتوافق دائماً
             service = Service(ChromeDriverManager().install())
-        
-        self.driver = webdriver.Chrome(service=service, options=options)
-        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
-        self.wait = WebDriverWait(self.driver, 30)
+            
+            self.driver = webdriver.Chrome(service=service, options=options)
+            self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
+            self.wait = WebDriverWait(self.driver, 30)
+            logger.info("WebDriver setup successful.")
+        except Exception as e:
+            logger.error(f"Failed to create WebDriver session: {e}")
+            st.error(f"Could not start browser session. Please check logs. Error: {e}")
+            st.stop()
+    # --- نهاية التعديل ---
 
     def safe_clear_and_fill(self, element, value):
         element.send_keys(Keys.CONTROL + "a", Keys.BACKSPACE)
@@ -237,19 +247,22 @@ class ICPScraper:
                 if 'Network.responseReceived' in message['method']:
                     request_id = message.get('params', {}).get('requestId')
                     try:
-                        body = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})['body']
-                        data = json.loads(body)
-                        if data.get('isValid'):
-                            info = data.get('personalInfo', [{}])[0]
-                            return {
-                                'English Name': info.get('englishFullName'), 'Arabic Name': info.get('arabicFullName'),
-                                'Unified Number': info.get('unifiedNumber'), 'EID Number': info.get('identityNumber'),
-                                'EID Expire Date': info.get('identityExpireDate'), 'Visa Issue Place': info.get('englishIdentityIssuePlace'),
-                                'Profession': info.get('englishProfession'), 'English Sponsor Name': info.get('englishSponsorName'),
-                                'Arabic Sponsor Name': info.get('arabicSponsorName'), 'Status': 'Found'
-                            }
-                        elif data.get('isValid') is False:
-                            return {'Status': 'Not Found'}
+                        resp_obj = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
+                        body_text = resp_obj['body'].encode('latin-1').decode('utf-8')
+
+                        if 'isValid' in body_text:
+                            data = json.loads(body_text)
+                            if data.get('isValid'):
+                                info = data.get('personalInfo', [{}])[0]
+                                return {
+                                    'English Name': info.get('englishFullName'), 'Arabic Name': info.get('arabicFullName'),
+                                    'Unified Number': info.get('unifiedNumber'), 'EID Number': info.get('identityNumber'),
+                                    'EID Expire Date': info.get('identityExpireDate'), 'Visa Issue Place': info.get('englishIdentityIssuePlace'),
+                                    'Profession': info.get('englishProfession'), 'English Sponsor Name': info.get('englishSponsorName'),
+                                    'Arabic Sponsor Name': info.get('arabicSponsorName'), 'Status': 'Found'
+                                }
+                            elif data.get('isValid') is False:
+                                return {'Status': 'Not Found'}
                     except: continue
         except Exception as e:
             logger.error(f"Capture Error: {e}")
