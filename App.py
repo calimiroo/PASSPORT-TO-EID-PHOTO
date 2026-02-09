@@ -83,7 +83,7 @@ if not st.session_state.authenticated:
             margin-top: 50px;
         }
         </style>
-    ""`, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
     
     st.markdown('<div class="big-title">H-TRACING (ICP)</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center; font-size: 1.2rem; color: #555; margin-bottom: 40px;">Enter Password</div>', unsafe_allow_html=True)
@@ -121,7 +121,7 @@ st.markdown("""
         overflow-x: auto !important;
     }
     </style>
-    ""`, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # --- Session State Management ---
 if 'run_state' not in st.session_state:
@@ -525,7 +525,7 @@ class ICPScraper:
                                 result['Photo'] = photo_src
                                 logger.info("Personal photo extracted successfully (longest base64 selected).")
                             else:
-                                logger.warning("Found data:image but no valid base64.")
+                                logger.warning("Found image but no valid base64.")
                         else:
                             logger.warning("No image/img elements found on the digital card page.")
                     except Exception as e:
