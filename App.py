@@ -288,7 +288,7 @@ def create_card_image(data, size=(5760, 2700)):
             value = format_date(value)
         value_display = reshape_arabic(str(value))
         draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
-        wrapped_lines = wrap_text(draw, value_display, value_font, max_width)
+        wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
         for line in wrapped_lines:
             draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
             y += line_height // 1.8
@@ -671,3 +671,4 @@ with tab2:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="dl_results"
             )
+
