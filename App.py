@@ -14,7 +14,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import io
 from PIL import Image, ImageDraw, ImageFont
 import base64
-import os
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -63,7 +62,7 @@ if not st.session_state.authenticated:
                     st.error("Password Wrong")
         st.markdown('</div>', unsafe_allow_html=True)
     
-    st.stop()
+    st.stop()  # يوقف التنفيذ حتى يتم التحقق
 
 # --- إذا تم التحقق بنجاح، يستمر التطبيق الرئيسي ---
 st.title("H-TRACING (ICP)")
@@ -159,81 +158,29 @@ def wrap_text(draw, text, font, max_width):
         lines.append(current_line.strip())
     return lines
 
-def create_card_image(data, size=(4000, 2000)):
+def create_card_image(data, size=(5760, 2700)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
-    
-    # ⬇️⬇️⬇️ أحجام خطوط كبيرة جداً - تم زيادة بشكل كبير ⬇️⬇️⬇️
-    # في PIL، حجم الخط 100 يعادل تقريباً حجم 72 نقطة في Word
-    title_font_size = 140  # حجم كبير جداً للعنوان (يعادل ~100pt في Word)
-    label_font_size = 100  # حجم كبير للتسميات (يعادل ~72pt في Word)
-    value_font_size = 90   # حجم كبير للقيم (يعادل ~65pt في Word)
-    
-    # محاولة استخدام Arial أو خط افتراضي
+    title_font_size = 130
+    label_font_size = 95
+    value_font_size = 85
     try:
-        # محاولة تحميل Arial Bold للعنوان
         title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
         label_font = ImageFont.truetype("arial.ttf", label_font_size)
         value_font = ImageFont.truetype("arial.ttf", value_font_size)
     except:
         try:
-            # إذا لم يوجد Arial، حاول استخدام DejaVu Sans (موجود في Linux)
-            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", title_font_size)
-            label_font = ImageFont.truetype("DejaVuSans.ttf", label_font_size)
-            value_font = ImageFont.truetype("DejaVuSans.ttf", value_font_size)
+            title_font = ImageFont.truetype("arial.ttf", title_font_size)
         except:
-            try:
-                # إذا لم يوجد، حاول استخدام Liberation Sans (موجود في Linux)
-                title_font = ImageFont.truetype("LiberationSans-Bold.ttf", title_font_size)
-                label_font = ImageFont.truetype("LiberationSans.ttf", label_font_size)
-                value_font = ImageFont.truetype("LiberationSans.ttf", value_font_size)
-            except:
-                # استخدام الخط الافتراضي مع حجم كبير
-                default_font = ImageFont.load_default()
-                # حاول تكبير الخط الافتراضي (هذا قد لا يعمل مع load_default)
-                title_font = ImageFont.load_default()
-                label_font = ImageFont.load_default()
-                value_font = ImageFont.load_default()
+            title_font = ImageFont.load_default()
+        label_font = ImageFont.load_default()
+        value_font = ImageFont.load_default()
 
-    # ⬇️⬇️⬇️ تصميم شريط العنوان ⬇️⬇️⬇️
-    header_height = 200
-    draw.rectangle([(0, 0), (size[0], header_height)], fill=(218, 165, 32))
-    
-    # نص العنوان في المركز
-    title_text = "H-TRACING - ICP CARD"
-    try:
-        title_width = draw.textlength(title_text, font=title_font)
-    except:
-        title_width = len(title_text) * title_font_size  # تقدير تقريبي
-    
-    title_x = (size[0] - title_width) // 2
-    draw.text((title_x, 60), title_text, fill=(0, 0, 139), font=title_font)
+    draw.rectangle([(0, 0), (size[0], 150)], fill=(218, 165, 32))
+    draw.text((120, 40), "H-TRACING", fill=(0, 0, 139), font=title_font)
 
-    # ⬇️⬇️⬇️ معلومات الشخص في أعلى اليسار ⬇️⬇️⬇️
-    info_x = 100
-    info_y = header_height + 80
-    
-    # إضافة معلومات أساسية في أعلى الكارت
-    if data.get('English Name'):
-        name_text = f"Name: {data.get('English Name', '')}"
-        draw.text((info_x, info_y), name_text, fill=(0, 0, 0), font=label_font)
-        info_y += 120
-    
-    if data.get('Passport Number'):
-        passport_text = f"Passport: {data.get('Passport Number', '')}"
-        draw.text((info_x, info_y), passport_text, fill=(0, 0, 0), font=label_font)
-        info_y += 120
-    
-    if data.get('Nationality'):
-        nationality_text = f"Nationality: {data.get('Nationality', '')}"
-        draw.text((info_x, info_y), nationality_text, fill=(0, 0, 0), font=label_font)
-        info_y += 120
-
-    # ⬇️⬇️⬇️ مكان الصورة الشخصية ⬇️⬇️⬇️
-    photo_x = size[0] - 1000  # مكان الصورة في الجهة اليمنى
-    photo_y = header_height + 80
-    photo_size = (800, 800)
-    
+    photo_x, photo_y = 180, 320
+    photo_size = (950, 950)
     draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
                    outline=(80, 80, 80), width=10, fill=(230, 230, 230))
 
@@ -245,98 +192,45 @@ def create_card_image(data, size=(4000, 2000)):
             img.paste(personal_photo, (photo_x, photo_y))
         except Exception as e:
             logger.warning(f"Failed to load personal photo: {e}")
-            draw.text((photo_x + photo_size[0]//2 - 200, photo_y + photo_size[1]//2 - 50), 
-                     "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
+            draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
+                      fill=(120, 120, 120), font=title_font, align="center")
     else:
-        draw.text((photo_x + photo_size[0]//2 - 200, photo_y + photo_size[1]//2 - 50), 
-                 "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
+        draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
+                  fill=(120, 120, 120), font=title_font, align="center")
 
-    # ⬇️⬇️⬇️ معلومات النصوص الرئيسية ⬇️⬇️⬇️
-    # تقسيم الكارت إلى قسمين: اليسار للمعلومات، اليمين للصورة
-    text_start_x = 100
-    text_start_y = header_height + 400
-    line_height = 140  # زيادة المسافة بين الأسطر
-    
+    x_label = photo_x + photo_size[0] + 250
+    x_value = x_label + 1600
+    y_start = 350
+    line_height = 135
     fields = [
+        ("English Name:", 'English Name'),
+        ("Arabic Name:", 'Arabic Name'),
         ("Unified Number:", 'Unified Number'),
         ("EID Number:", 'EID Number'),
         ("EID Expire Date:", 'EID Expire Date'),
         ("Visa Issue Place:", 'Visa Issue Place'),
         ("Profession:", 'Profession'),
-        ("Sponsor Name:", 'English Sponsor Name'),
-        ("Arabic Name:", 'Arabic Name'),
-        ("Arabic Sponsor:", 'Arabic Sponsor Name'),
-        ("Related Persons:", 'Related Individuals')
+        ("English Sponsor Name:", 'English Sponsor Name'),
+        ("Arabic Sponsor Name:", 'Arabic Sponsor Name'),
+        ("Related Individuals:", 'Related Individuals')
     ]
 
-    y = text_start_y
-    
-    # رسم خط فاصل
-    draw.line([(size[0]//2, header_height + 100), (size[0]//2, size[1] - 100)], 
-              fill=(200, 200, 200), width=5)
-    
+    y = y_start
+    max_value_width = size[0] - x_value - 200
     for label_text, key in fields:
         value = data.get(key, '')
         if key in ['EID Expire Date']:
             value = format_date(value)
-        
-        if key in ['Arabic Name', 'Arabic Sponsor Name']:
-            value_display = reshape_arabic(str(value))
-        else:
-            value_display = str(value)
-        
-        # رسم التسمية على اليسار
-        draw.text((text_start_x, y), label_text, fill=(0, 0, 0), font=label_font)
-        
-        # رسم القيمة على اليمين (بعد الخط الفاصل)
-        value_x = size[0]//2 + 100
-        
-        # تقسيم النص إذا كان طويلاً
-        max_value_width = size[0] - value_x - 100
+        value_display = reshape_arabic(str(value))
+        draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
-        
-        for i, line in enumerate(wrapped_lines):
-            draw.text((value_x, y + (i * 80)), line, fill=(0, 0, 100), font=value_font)
-        
-        y += line_height
-
-    # ⬇️⬇️⬇️ معلومات إضافية في الأسفل ⬇️⬇️⬇️
-    footer_y = size[1] - 100
-    
-    # شريط أسفل الكارت
-    draw.rectangle([(0, footer_y - 40), (size[0], footer_y + 60)], 
-                   fill=(240, 240, 240), outline=(200, 200, 200), width=3)
-    
-    # معلومات النظام والتاريخ
-    system_text = "H-TRACING SYSTEM - ICP DATA"
-    draw.text((100, footer_y), system_text, fill=(100, 100, 100), font=label_font)
-    
-    current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
-    date_text = f"Generated on: {current_date}"
-    
-    try:
-        date_width = draw.textlength(date_text, font=label_font)
-    except:
-        date_width = len(date_text) * label_font_size  # تقدير تقريبي
-    
-    draw.text((size[0] - date_width - 100, footer_y), date_text, 
-              fill=(100, 100, 100), font=label_font)
-
-    # ⬇️⬇️⬇️ إضافة QR Code مكان إذا كان موجوداً ⬇️⬇️⬇️
-    qr_size = 300
-    qr_x = size[0] - qr_size - 100
-    qr_y = footer_y - qr_size - 50
-    
-    draw.rectangle([(qr_x, qr_y), (qr_x + qr_size, qr_y + qr_size)], 
-                   fill=(255, 255, 255), outline=(0, 0, 0), width=3)
-    
-    draw.text((qr_x + 20, qr_y + qr_size//2 - 40), "QR", 
-              fill=(0, 0, 0), font=title_font)
-    draw.text((qr_x + 20, qr_y + qr_size//2 + 40), "CODE", 
-              fill=(0, 0, 0), font=title_font)
+        for line in wrapped_lines:
+            draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
+            y += line_height // 1.8
+        y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.8)
 
     buffer = io.BytesIO()
-    img.save(buffer, format="JPEG", quality=95)
+    img.save(buffer, format="JPEG", quality=98)
     buffer.seek(0)
     return buffer
 
@@ -622,7 +516,7 @@ with tab1:
         single_table_area.table(apply_styling(filtered_df))
         if st.session_state.single_result.get('Status') == 'Found':
             card_buffer = create_card_image(st.session_state.single_result)
-            card_width = 1200 if st.session_state.card_enlarged else 800
+            card_width = 1400 if st.session_state.card_enlarged else 700
             card_image_area.image(card_buffer, caption="Generated Card (Preview)", width=card_width)
             st.button("Enlarge Card" if not st.session_state.card_enlarged else "Shrink Card", on_click=toggle_card)
             st.download_button(
