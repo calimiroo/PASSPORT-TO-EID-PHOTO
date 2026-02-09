@@ -159,78 +159,83 @@ def wrap_text(draw, text, font, max_width):
         lines.append(current_line.strip())
     return lines
 
-def get_font_path(font_name):
-    """الحصول على مسار الخط المتاح في النظام"""
-    # قائمة بالمسارات المحتملة للخطوط
-    font_paths = [
-        f"/usr/share/fonts/truetype/{font_name}.ttf",
-        f"/usr/share/fonts/{font_name}.ttf",
-        f"/usr/share/fonts/TTF/{font_name}.ttf",
-        f"/usr/local/share/fonts/{font_name}.ttf",
-        f"C:/Windows/Fonts/{font_name}.ttf",
-        f"{font_name}.ttf",
-    ]
-    
-    for path in font_paths:
-        if os.path.exists(path):
-            return path
-    
-    return None
-
-def create_card_image(data, size=(4000, 2000)):  # تخفيض حجم الكارت ليكون مناسب للخطوط الكبيرة
+def create_card_image(data, size=(4000, 2000)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
     
-    # ⬇️⬇️⬇️ زيادة أحجام الخطوط بشكل كبير جداً ⬇️⬇️⬇️
-    title_font_size = 120  # حجم خط العنوان
-    label_font_size = 70   # حجم خط التسميات
-    value_font_size = 65   # حجم خط القيم
+    # ⬇️⬇️⬇️ أحجام خطوط كبيرة جداً - تم زيادة بشكل كبير ⬇️⬇️⬇️
+    # في PIL، حجم الخط 100 يعادل تقريباً حجم 72 نقطة في Word
+    title_font_size = 140  # حجم كبير جداً للعنوان (يعادل ~100pt في Word)
+    label_font_size = 100  # حجم كبير للتسميات (يعادل ~72pt في Word)
+    value_font_size = 90   # حجم كبير للقيم (يعادل ~65pt في Word)
     
-    # محاولة استخدام Calibri أو خطوط بديلة
+    # محاولة استخدام Arial أو خط افتراضي
     try:
-        # محاولة تحميل Calibri
-        calibri_path = get_font_path("calibri")
-        calibri_bold_path = get_font_path("calibrib")
-        
-        if calibri_bold_path:
-            title_font = ImageFont.truetype(calibri_bold_path, title_font_size)
-        else:
-            title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
-            
-        if calibri_path:
-            label_font = ImageFont.truetype(calibri_path, label_font_size)
-            value_font = ImageFont.truetype(calibri_path, value_font_size)
-        else:
-            label_font = ImageFont.truetype("arial.ttf", label_font_size)
-            value_font = ImageFont.truetype("arial.ttf", value_font_size)
-            
-    except Exception as e:
-        logger.warning(f"خطأ في تحميل الخطوط: {e}")
+        # محاولة تحميل Arial Bold للعنوان
+        title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
+        label_font = ImageFont.truetype("arial.ttf", label_font_size)
+        value_font = ImageFont.truetype("arial.ttf", value_font_size)
+    except:
         try:
-            title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
-            label_font = ImageFont.truetype("arial.ttf", label_font_size)
-            value_font = ImageFont.truetype("arial.ttf", value_font_size)
+            # إذا لم يوجد Arial، حاول استخدام DejaVu Sans (موجود في Linux)
+            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", title_font_size)
+            label_font = ImageFont.truetype("DejaVuSans.ttf", label_font_size)
+            value_font = ImageFont.truetype("DejaVuSans.ttf", value_font_size)
         except:
-            title_font = ImageFont.load_default()
-            label_font = ImageFont.load_default()
-            value_font = ImageFont.load_default()
+            try:
+                # إذا لم يوجد، حاول استخدام Liberation Sans (موجود في Linux)
+                title_font = ImageFont.truetype("LiberationSans-Bold.ttf", title_font_size)
+                label_font = ImageFont.truetype("LiberationSans.ttf", label_font_size)
+                value_font = ImageFont.truetype("LiberationSans.ttf", value_font_size)
+            except:
+                # استخدام الخط الافتراضي مع حجم كبير
+                default_font = ImageFont.load_default()
+                # حاول تكبير الخط الافتراضي (هذا قد لا يعمل مع load_default)
+                title_font = ImageFont.load_default()
+                label_font = ImageFont.load_default()
+                value_font = ImageFont.load_default()
 
     # ⬇️⬇️⬇️ تصميم شريط العنوان ⬇️⬇️⬇️
-    header_height = 180
+    header_height = 200
     draw.rectangle([(0, 0), (size[0], header_height)], fill=(218, 165, 32))
     
     # نص العنوان في المركز
-    title_text = "H-TRACING"
-    title_width = draw.textlength(title_text, font=title_font)
+    title_text = "H-TRACING - ICP CARD"
+    try:
+        title_width = draw.textlength(title_text, font=title_font)
+    except:
+        title_width = len(title_text) * title_font_size  # تقدير تقريبي
+    
     title_x = (size[0] - title_width) // 2
-    draw.text((title_x, 50), title_text, fill=(0, 0, 139), font=title_font)
+    draw.text((title_x, 60), title_text, fill=(0, 0, 139), font=title_font)
+
+    # ⬇️⬇️⬇️ معلومات الشخص في أعلى اليسار ⬇️⬇️⬇️
+    info_x = 100
+    info_y = header_height + 80
+    
+    # إضافة معلومات أساسية في أعلى الكارت
+    if data.get('English Name'):
+        name_text = f"Name: {data.get('English Name', '')}"
+        draw.text((info_x, info_y), name_text, fill=(0, 0, 0), font=label_font)
+        info_y += 120
+    
+    if data.get('Passport Number'):
+        passport_text = f"Passport: {data.get('Passport Number', '')}"
+        draw.text((info_x, info_y), passport_text, fill=(0, 0, 0), font=label_font)
+        info_y += 120
+    
+    if data.get('Nationality'):
+        nationality_text = f"Nationality: {data.get('Nationality', '')}"
+        draw.text((info_x, info_y), nationality_text, fill=(0, 0, 0), font=label_font)
+        info_y += 120
 
     # ⬇️⬇️⬇️ مكان الصورة الشخصية ⬇️⬇️⬇️
-    photo_x, photo_y = 150, 250
+    photo_x = size[0] - 1000  # مكان الصورة في الجهة اليمنى
+    photo_y = header_height + 80
     photo_size = (800, 800)
     
     draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
-                   outline=(80, 80, 80), width=12, fill=(230, 230, 230))
+                   outline=(80, 80, 80), width=10, fill=(230, 230, 230))
 
     if 'Photo' in data and data['Photo']:
         try:
@@ -240,61 +245,95 @@ def create_card_image(data, size=(4000, 2000)):  # تخفيض حجم الكار�
             img.paste(personal_photo, (photo_x, photo_y))
         except Exception as e:
             logger.warning(f"Failed to load personal photo: {e}")
-            draw.text((photo_x + photo_size[0]//2 - 150, photo_y + photo_size[1]//2 - 50), 
-                     "NO PHOTO", fill=(120, 120, 120), font=title_font, align="center")
+            draw.text((photo_x + photo_size[0]//2 - 200, photo_y + photo_size[1]//2 - 50), 
+                     "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
     else:
-        draw.text((photo_x + photo_size[0]//2 - 150, photo_y + photo_size[1]//2 - 50), 
-                 "NO PHOTO", fill=(120, 120, 120), font=title_font, align="center")
+        draw.text((photo_x + photo_size[0]//2 - 200, photo_y + photo_size[1]//2 - 50), 
+                 "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
 
-    # ⬇️⬇️⬇️ معلومات النصوص ⬇️⬇️⬇️
-    x_label = photo_x + photo_size[0] + 150
-    x_value = x_label + 400
-    y_start = 280
-    line_height = 100
+    # ⬇️⬇️⬇️ معلومات النصوص الرئيسية ⬇️⬇️⬇️
+    # تقسيم الكارت إلى قسمين: اليسار للمعلومات، اليمين للصورة
+    text_start_x = 100
+    text_start_y = header_height + 400
+    line_height = 140  # زيادة المسافة بين الأسطر
     
     fields = [
-        ("English Name:", 'English Name'),
-        ("Arabic Name:", 'Arabic Name'),
         ("Unified Number:", 'Unified Number'),
         ("EID Number:", 'EID Number'),
         ("EID Expire Date:", 'EID Expire Date'),
         ("Visa Issue Place:", 'Visa Issue Place'),
         ("Profession:", 'Profession'),
-        ("English Sponsor Name:", 'English Sponsor Name'),
-        ("Arabic Sponsor Name:", 'Arabic Sponsor Name'),
-        ("Related Individuals:", 'Related Individuals')
+        ("Sponsor Name:", 'English Sponsor Name'),
+        ("Arabic Name:", 'Arabic Name'),
+        ("Arabic Sponsor:", 'Arabic Sponsor Name'),
+        ("Related Persons:", 'Related Individuals')
     ]
 
-    y = y_start
-    max_value_width = size[0] - x_value - 100
+    y = text_start_y
+    
+    # رسم خط فاصل
+    draw.line([(size[0]//2, header_height + 100), (size[0]//2, size[1] - 100)], 
+              fill=(200, 200, 200), width=5)
     
     for label_text, key in fields:
         value = data.get(key, '')
         if key in ['EID Expire Date']:
             value = format_date(value)
-        value_display = reshape_arabic(str(value))
         
-        # رسم التسمية
-        draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
+        if key in ['Arabic Name', 'Arabic Sponsor Name']:
+            value_display = reshape_arabic(str(value))
+        else:
+            value_display = str(value)
+        
+        # رسم التسمية على اليسار
+        draw.text((text_start_x, y), label_text, fill=(0, 0, 0), font=label_font)
+        
+        # رسم القيمة على اليمين (بعد الخط الفاصل)
+        value_x = size[0]//2 + 100
         
         # تقسيم النص إذا كان طويلاً
+        max_value_width = size[0] - value_x - 100
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
         
-        for line in wrapped_lines:
-            draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
-            y += line_height // 1.5
+        for i, line in enumerate(wrapped_lines):
+            draw.text((value_x, y + (i * 80)), line, fill=(0, 0, 100), font=value_font)
         
-        y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.5)
+        y += line_height
 
     # ⬇️⬇️⬇️ معلومات إضافية في الأسفل ⬇️⬇️⬇️
-    footer_y = size[1] - 120
-    draw.text((x_label, footer_y), "H-TRACING SYSTEM", 
-              fill=(100, 100, 100), font=label_font)
+    footer_y = size[1] - 100
+    
+    # شريط أسفل الكارت
+    draw.rectangle([(0, footer_y - 40), (size[0], footer_y + 60)], 
+                   fill=(240, 240, 240), outline=(200, 200, 200), width=3)
+    
+    # معلومات النظام والتاريخ
+    system_text = "H-TRACING SYSTEM - ICP DATA"
+    draw.text((100, footer_y), system_text, fill=(100, 100, 100), font=label_font)
     
     current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
-    date_width = draw.textlength(f"Date: {current_date}", font=label_font)
-    draw.text((size[0] - date_width - 50, footer_y), f"Date: {current_date}", 
+    date_text = f"Generated on: {current_date}"
+    
+    try:
+        date_width = draw.textlength(date_text, font=label_font)
+    except:
+        date_width = len(date_text) * label_font_size  # تقدير تقريبي
+    
+    draw.text((size[0] - date_width - 100, footer_y), date_text, 
               fill=(100, 100, 100), font=label_font)
+
+    # ⬇️⬇️⬇️ إضافة QR Code مكان إذا كان موجوداً ⬇️⬇️⬇️
+    qr_size = 300
+    qr_x = size[0] - qr_size - 100
+    qr_y = footer_y - qr_size - 50
+    
+    draw.rectangle([(qr_x, qr_y), (qr_x + qr_size, qr_y + qr_size)], 
+                   fill=(255, 255, 255), outline=(0, 0, 0), width=3)
+    
+    draw.text((qr_x + 20, qr_y + qr_size//2 - 40), "QR", 
+              fill=(0, 0, 0), font=title_font)
+    draw.text((qr_x + 20, qr_y + qr_size//2 + 40), "CODE", 
+              fill=(0, 0, 0), font=title_font)
 
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=95)
@@ -583,7 +622,7 @@ with tab1:
         single_table_area.table(apply_styling(filtered_df))
         if st.session_state.single_result.get('Status') == 'Found':
             card_buffer = create_card_image(st.session_state.single_result)
-            card_width = 1000 if st.session_state.card_enlarged else 600
+            card_width = 1200 if st.session_state.card_enlarged else 800
             card_image_area.image(card_buffer, caption="Generated Card (Preview)", width=card_width)
             st.button("Enlarge Card" if not st.session_state.card_enlarged else "Shrink Card", on_click=toggle_card)
             st.download_button(
