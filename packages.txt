@@ -1,4 +1,15 @@
-ttf-mscorefonts-installer
+chromium
+chromium-driver
+fonts-dejavu-core
+fonts-freefont-ttf
 fonts-liberation
-fonts-dejavu
+fonts-noto
+fonts-noto-cjk
+fonts-noto-color-emoji
 fonts-roboto
+fonts-ubuntu
+ttf-mscorefonts-installer
+xfonts-base
+xfonts-100dpi
+xfonts-75dpi
+xfonts-cyrillic
