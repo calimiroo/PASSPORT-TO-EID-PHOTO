@@ -18,14 +18,14 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 import os
 
-# --- Logging Setup ---
+# --- إعدادات تسجيل الأخطاء ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Page Setup ---
+# --- إعدادات الصفحة ---
 st.set_page_config(page_title="ICP Data Search", layout="wide")
 
-# --- Password Protection ---
+# --- حماية بكلمة مرور ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
@@ -57,7 +57,7 @@ if not st.session_state.authenticated:
     
     st.stop()
 
-# --- Main Application ---
+# --- التطبيق الرئيسي ---
 st.title("H-TRACING (ICP)")
 
 st.markdown("""
@@ -67,7 +67,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- Session State Management ---
+# --- إدارة حالة الجلسة ---
 for key in ['run_state', 'batch_results', 'start_time_ref', 'single_result', 'card_enlarged']:
     if key not in st.session_state:
         st.session_state[key] = 'stopped' if key == 'run_state' else [] if key == 'batch_results' else None if key in ['start_time_ref', 'single_result'] else False
@@ -195,7 +195,7 @@ class ICPScraper:
         
         try:
             logger.info("Setting up WebDriver for Streamlit Cloud...")
-            # لا نحدد مسار المتصفح، Selenium سيكتشفه تلقائيًا بفضل packages.txt
+            # بفضل packages.txt، سيجد webdriver-manager الآن الأدوات الصحيحة.
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=options)
             self.wait = WebDriverWait(self.driver, 30)
@@ -331,7 +331,7 @@ class ICPScraper:
 def toggle_card():
     st.session_state.card_enlarged = not st.session_state.card_enlarged
 
-# --- UI Tabs ---
+# --- واجهة المستخدم ---
 tab1, tab2 = st.tabs(["Single Search", "Upload Excel File"])
 
 with tab1:
