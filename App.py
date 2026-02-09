@@ -482,7 +482,28 @@ class ICPScraper:
             time.sleep(1)
             search_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[ng-click='search()']")))
             self.driver.execute_script("arguments[0].removeAttribute('disabled'); arguments[0].classList.remove('disabled'); arguments[0].click();", search_button)
-            time.sleep(5)
+            time.sleep(7)  # увеличи الوقت لتحميل البيانات + الصورة
+
+            # --- 📸 محاولة استخراج الصورة مباشرة من الصفحة الحالية (قبل QR) ---
+            photo_base64 = None
+            try:
+                # ابحث عن أي صورة تحتوي على base64 في src
+                img_elements = self.driver.find_elements(By.CSS_SELECTOR, "img[src*='base64']")
+                if not img_elements:
+                    # جرّب جميع الصور وافحص src
+                    img_elements = self.driver.find_elements(By.TAG_NAME, "img")
+                for img in img_elements:
+                    src = img.get_attribute("src")
+                    if src and "base64" in src and src.startswith("data:image"):
+                        # خذ أطول صورة (الأكثر احتمالاً أنها الصورة الشخصية)
+                        if len(src) > len(photo_base64 or ""):
+                            photo_base64 = src
+                        break  # نأخذ أول صورة واضحة
+                if photo_base64:
+                    logger.info("✅ Personal photo found directly on search page.")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to extract photo from search page: {e}")
+
             temp_result = self.capture_network_data()
             if temp_result.get('Status') == 'Found':
                 result = temp_result
@@ -496,12 +517,29 @@ class ICPScraper:
                     time.sleep(1)
                     search_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[ng-click='search()']")))
                     self.driver.execute_script("arguments[0].removeAttribute('disabled'); arguments[0].classList.remove('disabled'); arguments[0].click();", search_button)
-                    time.sleep(5)
+                    time.sleep(7)  # увеличи الوقت لتحميل البيانات + الصورة
+
+                    # حاول استخراج الصورة مرة أخرى بعد كل بحث
+                    if not photo_base64:
+                        try:
+                            img_elements = self.driver.find_elements(By.CSS_SELECTOR, "img[src*='base64']")
+                            if not img_elements:
+                                img_elements = self.driver.find_elements(By.TAG_NAME, "img")
+                            for img in img_elements:
+                                src = img.get_attribute("src")
+                                if src and "base64" in src and src.startswith("data:image"):
+                                    if len(src) > len(photo_base64 or ""):
+                                        photo_base64 = src
+                                    break
+                        except:
+                            pass
+
                     temp_result = self.capture_network_data()
                     if temp_result.get('Status') == 'Found':
                         result = temp_result
                         related_count = rc
                         break
+
             if result.get('Status') == 'Found':
                 result['Related Individuals'] = str(related_count)
                 if 'EID Expire Date' in result:
@@ -511,25 +549,17 @@ class ICPScraper:
                 result['Passport Number'] = passport_number
                 result['Nationality'] = nationality
                 result['Gender'] = gender
-                qr_url = self.extract_qr_url()
-                if qr_url:
-                    logger.info(f"Extracted QR URL: {qr_url}")
-                    self.driver.get(qr_url)
-                    time.sleep(15)
-                    try:
-                        photo_elements = self.driver.find_elements(By.CSS_SELECTOR, 'img[src^="image"]')
-                        if photo_elements:
-                            photo_element = max(photo_elements, key=lambda el: len(el.get_attribute('src') or ''))
-                            photo_src = photo_element.get_attribute('src')
-                            if photo_src and 'base64' in photo_src:
-                                result['Photo'] = photo_src
-                                logger.info("Personal photo extracted successfully (longest base64 selected).")
-                            else:
-                                logger.warning("Found image but no valid base64.")
-                        else:
-                            logger.warning("No image/img elements found on the digital card page.")
-                    except Exception as e:
-                        logger.warning(f"Failed to extract personal photo: {e}")
+
+                # --- ✅ ضع الصورة في النتيجة إن وُجدت ---
+                if photo_base64:
+                    result['Photo'] = photo_base64
+                    logger.info("🖼️ Photo added to result (base64 length: %s)", len(photo_base64))
+
+                # --- لا حاجة لـ QR الآن إلا إذا أردت التحقق الإضافي ---
+                # (يمكنك إبقاء قسم QR أو تعطيله لتسريع العملية)
+                # qr_url = self.extract_qr_url()
+                # إن أردت استخدام QR، فاحرص على أن تبحث عن الصورة داخل صفحة QR بنفس الطريقة
+
             return result
         except Exception as e:
             logger.error(f"Error during search: {e}")
@@ -601,13 +631,13 @@ with tab2:
         st.write(f"Total records: {len(df_original)}")
         st.dataframe(df_show, height=150, use_container_width=True)
         col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
-        if col_ctrl1.button("▶️ Start / Resume"):
+        if col_btn1.button("▶️ Start / Resume"):
             st.session_state.run_state = 'running'
             if st.session_state.start_time_ref is None:
                 st.session_state.start_time_ref = time.time()
-        if col_ctrl2.button("⏸️ Pause"):
+        if col_btn2.button("⏸️ Pause"):
             st.session_state.run_state = 'paused'
-        if col_ctrl3.button("⏹️ Stop & Reset"):
+        if col_btn3.button("⏹️ Stop & Reset"):
             st.session_state.run_state = 'stopped'
             st.session_state.batch_results = []
             st.session_state.start_time_ref = None
@@ -671,4 +701,3 @@ with tab2:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="dl_results"
             )
-
