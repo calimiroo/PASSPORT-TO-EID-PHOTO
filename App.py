@@ -424,7 +424,7 @@ class ICPScraper:
                         canvas.width = img.width;
                         canvas.height = img.height;
                         context.drawImage(img, 0, 0);
-                        const imageData = context.getImageData(0, 0, img.width, img.height);
+                        const imageData = context.getImageData(0, 0, img.width, img.height)
                         const code = jsQR(imageData.data, imageData.width, imageData.height);
                         resolve(code ? code.data : null);
                     };
@@ -443,7 +443,7 @@ class ICPScraper:
            
             # Click on personal info radio button
             self.driver.execute_script("""
-                var radios = document.querySelectorAll('input[type="radio"]');
+                var radios = document.query_selectorAll('input[type="radio"]');
                 for (var i = 0; i < radios.length; i++) {
                     if (radios[i].value === "personalInfo" || radios[i].getAttribute('ng-value') === "0") {
                         radios[i].click();
@@ -543,7 +543,9 @@ with tab1:
     with col2:
         nationality = st.selectbox("Nationality", countries_list, key="nationality")
     with col3:
-        dob = st.date_input("Date of Birth", value=None, format="DD/MM/YYYY", key="dob")
+        min_date = datetime(1900, 1, 1).date()
+        max_date = datetime.now().date()
+        dob = st.date_input("Date of Birth", value=None, format="DD/MM/YYYY", key="dob", min_value=min_date, max_value=max_date)
    
     gender = st.radio("Gender", ["Male", "Female"], horizontal=True, key="gender")
    
