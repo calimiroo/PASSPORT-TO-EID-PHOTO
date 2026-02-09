@@ -95,6 +95,10 @@ if 'single_result' not in st.session_state:
     st.session_state.single_result = None
 if 'card_enlarged' not in st.session_state:
     st.session_state.card_enlarged = False
+if 'batch_df' not in st.session_state:
+    st.session_state.batch_df = None
+if 'current_index' not in st.session_state:
+    st.session_state.current_index = 0
 
 # List of nationalities
 countries_list = ["Select Nationality", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"]
@@ -142,13 +146,19 @@ def format_date(date_str):
         try:
             # محاولة تحليل كـ DD/MM/YYYY
             parsed = datetime.strptime(date_str.strip(), '%d/%m/%Y')
-            return date_str.strip()
+            return parsed.strftime('%d/%m/%Y')  # ضمان سنة كاملة
         except ValueError:
             try:
-                # إذا كانت سنة فقط، افترض 31/12/YYYY
+                # إذا كانت سنة فقط، افترض 31/12/YYYY مع سنة كاملة
                 if len(date_str.strip()) == 4 and date_str.strip().isdigit():
                     year = int(date_str.strip())
-                    return f"31/12/{year}"
+                    return f"31/12/{year:04d}"
+                # إذا كانت DD/MM/YY، حول إلى DD/MM/YYYY
+                elif '/' in date_str and len(date_str.split('/')[-1]) == 2:
+                    parts = date_str.split('/')
+                    year = int(parts[-1])
+                    full_year = 1900 + year if year > 50 else 2000 + year  # افتراض للقرن
+                    return f"{parts[0]}/{parts[1]}/{full_year:04d}"
                 else:
                     return date_str
             except:
@@ -157,9 +167,7 @@ def format_date(date_str):
 
 def wrap_text(draw, text, font, max_width):
     lines = []
-    # تحسين التقسيم للعربية: استخدام تقسيم أفضل إذا كان عربي
     if any('\u0600' <= c <= '\u06FF' for c in text):
-        # للعربية، نقسم على مسافات أو نقاط توقف طبيعية
         words = text.split(' ')
     else:
         words = text.split(' ')
@@ -179,18 +187,15 @@ def create_card_image(data, size=(3500, 2000)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
     
-    # أحجام الخطوط الكبيرة
     title_font_size = 140
     label_font_size = 100
     value_font_size = 90
     
-    # محاولة استخدام خطوط تدعم العربية بشكل أفضل
     fonts_tried = []
-    arabic_font_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"  # افتراضي لـ Noto Arabic
+    arabic_font_path = "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf"
     default_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     
     try:
-        # خط للعنوان والتسميات (إنجليزي رئيسي)
         title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", title_font_size)
         label_font = ImageFont.truetype(default_font_path, label_font_size)
     except Exception as e:
@@ -199,27 +204,23 @@ def create_card_image(data, size=(3500, 2000)):
         label_font = ImageFont.load_default()
     
     try:
-        # خط خاص للقيم (يدعم العربية)
         value_font = ImageFont.truetype(arabic_font_path, value_font_size)
     except Exception as e:
         logger.warning(f"Failed to load Arabic font: {e}. Falling back to default.")
         value_font = ImageFont.truetype(default_font_path, value_font_size)
     
-    # تصميم شريط العنوان
     header_height = 180
     draw.rectangle([(0, 0), (size[0], header_height)], fill=(218, 165, 32))
     
-    # العنوان
     title_text = "H-TRACING ICP CARD"
     try:
         title_width = draw.textlength(title_text, font=title_font)
     except:
-        title_width = len(title_text) * 70  # تقدير تقريبي
+        title_width = len(title_text) * 70
     
     title_x = (size[0] - title_width) // 2
     draw.text((title_x, 50), title_text, fill=(0, 0, 139), font=title_font)
     
-    # معلومات سريعة
     info_x = 100
     info_y = header_height + 50
     
@@ -234,10 +235,10 @@ def create_card_image(data, size=(3500, 2000)):
     
     info_y += 110
     if data.get('Date of Birth'):
-        draw.text((info_x, info_y), f"Date of Birth: {data.get('Date of Birth', '')}", 
+        dob_formatted = format_date(data.get('Date of Birth', ''))
+        draw.text((info_x, info_y), f"Date of Birth: {dob_formatted}", 
                  fill=(0, 0, 0), font=label_font)
 
-    # الصورة الشخصية
     photo_size = (700, 700)
     photo_x = size[0] - photo_size[0] - 100
     photo_y = header_height + 50
@@ -259,7 +260,6 @@ def create_card_image(data, size=(3500, 2000)):
         draw.text((photo_x + 200, photo_y + photo_size[1] // 2 - 50), 
                  "PHOTO", fill=(120, 120, 120), font=title_font, align="center")
 
-    # المعلومات التفصيلية
     text_start_x = 100
     text_start_y = header_height + 300
     line_height = 120
@@ -285,11 +285,9 @@ def create_card_image(data, size=(3500, 2000)):
         
         value_display = reshape_arabic(str(value)) if key in ['Arabic Name', 'Arabic Sponsor Name', 'Related Individuals'] else str(value)
         
-        # رسم التسمية
         draw.text((text_start_x, y), label_text, fill=(0, 0, 0), font=label_font)
         
-        # زيادة المسافة بين العنوان والقيمة للتناسق
-        value_x = text_start_x + 700  # زيادة المسافة من 500 إلى 700 لمسافة أكبر
+        value_x = text_start_x + 700
         max_value_width = size[0] - value_x - 150
         
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
@@ -298,7 +296,6 @@ def create_card_image(data, size=(3500, 2000)):
         
         y += line_height + (len(wrapped_lines) - 1) * 85
 
-    # التذييل
     footer_y = size[1] - 100
     draw.text((100, footer_y), "Generated by H-TRACING System", 
               fill=(100, 100, 100), font=label_font)
@@ -308,7 +305,7 @@ def create_card_image(data, size=(3500, 2000)):
     try:
         date_width = draw.textlength(date_text, font=label_font)
     except:
-        date_width = len(date_text) * 50  # تقدير تقريبي
+        date_width = len(date_text) * 50
     
     draw.text((size[0] - date_width - 100, footer_y), date_text, 
               fill=(100, 100, 100), font=label_font)
@@ -335,20 +332,17 @@ class ICPScraper:
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         
-        # إعدادات للعمل على Streamlit Cloud
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-setuid-sandbox")
         options.add_argument("--no-sandbox")
         
         try:
-            # في Streamlit Cloud، استخدام chromium المثبت
             options.binary_location = "/usr/bin/chromium"
             service = Service("/usr/bin/chromedriver")
             self.driver = webdriver.Chrome(service=service, options=options)
         except Exception as e:
             logger.warning(f"Failed to use system chromedriver: {e}")
             try:
-                # إذا فشل، استخدام webdriver-manager
                 service = Service(ChromeDriverManager().install())
                 self.driver = webdriver.Chrome(service=service, options=options)
             except Exception as e2:
@@ -470,7 +464,6 @@ class ICPScraper:
             logger.info(f"[*] Processing Passport: {passport_number}")
             time.sleep(3)
             
-            # Click on personal info radio button
             self.driver.execute_script("""
                 var radios = document.querySelectorAll('input[type="radio"]');
                 for (var i = 0; i < radios.length; i++) {
@@ -488,7 +481,7 @@ class ICPScraper:
             ppt_field = self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(),'Passport Number')]/following::input[1]")))
             self.safe_clear_and_fill(ppt_field, passport_number)
             
-            dob_formatted = pd.to_datetime(date_of_birth, dayfirst=True).strftime('%d/%m/%Y')
+            dob_formatted = format_date(date_of_birth)  # ضمان تنسيق كامل
             dob_field = self.driver.find_element(By.XPATH, "//label[contains(text(),'Date of Birth')]/following::input[1]")
             self.safe_clear_and_fill(dob_field, dob_formatted)
             dob_field.send_keys(Keys.TAB)
@@ -500,7 +493,6 @@ class ICPScraper:
             result = {'Status': 'Not Found'}
             related_count = 0
             
-            # تجربة من 0 إلى 5
             for rc in range(0, 6):
                 logger.info(f"Trying related count: {rc}")
                 related_field = self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(),'related to your file')]/following::input[1]")))
@@ -529,7 +521,6 @@ class ICPScraper:
                 result['Date of Birth'] = dob_formatted
                 result['Gender'] = gender
                 
-                # استخراج QR والصورة
                 qr_url = self.extract_qr_url()
                 if qr_url:
                     logger.info(f"Extracted QR URL: {qr_url}")
@@ -537,7 +528,6 @@ class ICPScraper:
                     time.sleep(10)
                     
                     try:
-                        # البحث عن الصورة الشخصية
                         images = self.driver.find_elements(By.TAG_NAME, 'img')
                         for img in images:
                             src = img.get_attribute('src')
@@ -603,14 +593,12 @@ with tab1:
             st.session_state.single_result = None
             st.rerun()
     
-    # عرض النتائج
     if st.session_state.single_result:
         result = st.session_state.single_result
         
         if result.get('Status') == 'Found':
             st.success("✅ Record Found!")
             
-            # عرض البيانات في جدول
             display_data = {
                 'Field': ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
                          'EID Expiry Date', 'Visa Issue Place', 'Profession',
@@ -625,23 +613,19 @@ with tab1:
             df = pd.DataFrame(display_data)
             st.dataframe(df, use_container_width=True, hide_index=True)
             
-            # إنشاء وعرض الكارت
             st.subheader("Generated Card")
             
             card_buffer = create_card_image(result)
             
-            # زر التكبير/التصغير
             col_view, col_download = st.columns([1, 2])
             with col_view:
                 if st.button("🔍 Enlarge" if not st.session_state.card_enlarged else "🔍 Shrink"):
                     toggle_card()
                     st.rerun()
             
-            # عرض الكارت
             card_width = 1000 if st.session_state.card_enlarged else 600
             st.image(card_buffer, width=card_width, caption="ICP Digital Card")
             
-            # زر تحميل الكارت
             with col_download:
                 st.download_button(
                     label="📥 Download Card",
@@ -667,26 +651,92 @@ with tab2:
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file)
+            st.session_state.batch_df = df
             st.write(f"📊 Found {len(df)} records in the file")
             
-            # عرض عينة من البيانات
             st.dataframe(df.head(), use_container_width=True)
             
-            # التحكم في العملية
             col_start, col_pause, col_stop = st.columns(3)
             
+            if st.session_state.run_state == 'stopped':
+                pause_btn_disabled = True
+            else:
+                pause_btn_disabled = False if st.session_state.run_state == 'running' else True
+            
             with col_start:
-                start_btn = st.button("▶️ Start Processing", use_container_width=True)
+                start_btn = st.button("▶️ Start Processing", use_container_width=True, disabled=(st.session_state.run_state != 'stopped'))
             
             with col_pause:
-                pause_btn = st.button("⏸️ Pause", use_container_width=True, disabled=True)
+                pause_btn = st.button("⏸️ Pause / Resume", use_container_width=True, disabled=pause_btn_disabled)
             
             with col_stop:
-                stop_btn = st.button("⏹️ Stop & Reset", use_container_width=True)
+                stop_btn = st.button("⏹️ Stop & Reset", use_container_width=True, disabled=(st.session_state.run_state == 'stopped'))
             
-            if start_btn:
-                st.info("Batch processing will be implemented in the next version.")
-                st.warning("This feature is under development.")
+            if start_btn and st.session_state.run_state == 'stopped':
+                st.session_state.run_state = 'running'
+                st.session_state.start_time_ref = time.time()
+                st.session_state.batch_results = []
+                st.session_state.current_index = 0
+                st.rerun()
+            
+            if pause_btn:
+                if st.session_state.run_state == 'running':
+                    st.session_state.run_state = 'paused'
+                elif st.session_state.run_state == 'paused':
+                    st.session_state.run_state = 'running'
+                st.rerun()
+            
+            if stop_btn:
+                st.session_state.run_state = 'stopped'
+                st.session_state.batch_results = []
+                st.session_state.current_index = 0
+                st.session_state.start_time_ref = None
+                st.rerun()
+            
+            if st.session_state.run_state in ['running', 'paused'] and st.session_state.batch_df is not None:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                results_placeholder = st.empty()
+                
+                if st.session_state.run_state == 'running' and st.session_state.current_index < len(st.session_state.batch_df):
+                    row = st.session_state.batch_df.iloc[st.session_state.current_index]
+                    passport = row['Passport Number']
+                    nationality = row['Nationality']
+                    dob = row['Date of Birth']
+                    gender = row['Gender']
+                    gender_code = "1" if gender.lower() == "male" else "0"
+                    
+                    scraper = ICPScraper()
+                    result = scraper.perform_single_search(passport, nationality, str(dob), gender_code)
+                    st.session_state.batch_results.append(result)
+                    st.session_state.current_index += 1
+                    
+                    if st.session_state.current_index < len(st.session_state.batch_df):
+                        time.sleep(1)  # تأخير صغير لتجنب الحظر
+                        st.rerun()
+                    else:
+                        st.session_state.run_state = 'stopped'
+                        st.rerun()
+                
+                # عرض التقدم
+                progress = st.session_state.current_index / len(st.session_state.batch_df)
+                progress_bar.progress(progress)
+                
+                elapsed_time = time.time() - st.session_state.start_time_ref if st.session_state.start_time_ref else 0
+                status_text.text(f"Status: {st.session_state.run_state.capitalize()} | Processed: {st.session_state.current_index}/{len(st.session_state.batch_df)} | Elapsed: {format_time(elapsed_time)}")
+                
+                if st.session_state.batch_results:
+                    results_df = pd.DataFrame(st.session_state.batch_results)
+                    styled_df = apply_styling(results_df)
+                    results_placeholder.write(styled_df)
+                    
+                    excel_data = to_excel(results_df)
+                    st.download_button(
+                        label="📥 Download Results",
+                        data=excel_data,
+                        file_name="batch_results.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
             
         except Exception as e:
             st.error(f"Error reading file: {e}")
