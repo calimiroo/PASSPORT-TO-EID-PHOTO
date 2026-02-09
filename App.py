@@ -185,6 +185,7 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
+    # --- التعديل هنا ---
     def setup_driver(self ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
@@ -198,15 +199,26 @@ class ICPScraper:
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
         
+        # التحقق إذا كان الكود يعمل في بيئة Streamlit Cloud
         if os.path.exists("/usr/bin/chromium-browser"):
+            logger.info("Detected Streamlit Cloud environment. Using pre-installed drivers.")
             options.binary_location = "/usr/bin/chromium-browser"
             service = Service("/usr/bin/chromedriver")
         else:
+            # إذا لم يكن في بيئة Streamlit Cloud، استخدم webdriver-manager (للعمل المحلي)
+            logger.info("Local environment detected. Using WebDriver Manager.")
             service = Service(ChromeDriverManager().install())
         
-        self.driver = webdriver.Chrome(service=service, options=options)
-        self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
-        self.wait = WebDriverWait(self.driver, 30)
+        try:
+            self.driver = webdriver.Chrome(service=service, options=options)
+            self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
+            self.wait = WebDriverWait(self.driver, 30)
+            logger.info("WebDriver setup successful.")
+        except Exception as e:
+            logger.error(f"Failed to create WebDriver session: {e}")
+            st.error(f"Could not start browser session. Please check logs. Error: {e}")
+            st.stop()
+    # --- نهاية التعديل ---
 
     def safe_clear_and_fill(self, element, value):
         element.send_keys(Keys.CONTROL + "a", Keys.BACKSPACE)
@@ -228,7 +240,6 @@ class ICPScraper:
         except Exception as e:
             logger.warning(f"Dropdown selection failed for {label_name}: {e}")
 
-    # --- التعديل هنا ---
     def capture_network_data(self):
         logger.info(" [>] Analyzing Network logs...")
         time.sleep(20)
@@ -238,10 +249,7 @@ class ICPScraper:
                 if 'Network.responseReceived' in message['method']:
                     request_id = message.get('params', {}).get('requestId')
                     try:
-                        # استلام البيانات الأولية
                         resp_obj = self.driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
-                        
-                        # فك ترميز النص باستخدام UTF-8
                         body_text = resp_obj['body'].encode('latin-1').decode('utf-8')
 
                         if 'isValid' in body_text:
@@ -257,13 +265,10 @@ class ICPScraper:
                                 }
                             elif data.get('isValid') is False:
                                 return {'Status': 'Not Found'}
-                    except Exception as e:
-                        # تجاهل الأخطاء في حال كانت البيانات غير قابلة للتحويل (ليست JSON مثلاً)
-                        continue
+                    except: continue
         except Exception as e:
             logger.error(f"Capture Error: {e}")
         return {'Status': 'Not Found'}
-    # --- نهاية التعديل ---
 
     def extract_qr_url(self):
         self.driver.execute_script("if (typeof jsQR === 'undefined') { const script = document.createElement('script'); script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'; document.head.appendChild(script ); }")
