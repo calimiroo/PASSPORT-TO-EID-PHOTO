@@ -14,6 +14,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 import io
 from PIL import Image, ImageDraw, ImageFont
 import base64
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -62,12 +64,12 @@ if not st.session_state.authenticated:
                     st.error("Password Wrong")
         st.markdown('</div>', unsafe_allow_html=True)
     
-    st.stop()  # يوقف التنفيذ حتى يتم التحقق
+    st.stop()
 
-# --- إذا تم التحقق بنجاح، يستمر التطبيق الرئيسي ---
+# --- Main Application ---
 st.title("H-TRACING (ICP)")
 
-# --- Improve table appearance and make it single line (No Wrap) ---
+# --- Improve table appearance ---
 st.markdown("""
     <style>
     .stTable td, .stTable th {
@@ -114,18 +116,10 @@ def apply_styling(df):
     return df.style.applymap(color_status, subset=['Status'])
 
 def reshape_arabic(text):
-    try:
-        import arabic_reshaper
-        from bidi.algorithm import get_display
-        if text and any('\u0600' <= c <= '\u06FF' for c in text):
-            reshaped = arabic_reshaper.reshape(text)
-            return get_display(reshaped)
-        return text
-    except ImportError:
-        st.warning("Libraries 'arabic-reshaper' and 'python-bidi' are not installed. Arabic texts may appear unformatted. Run: pip install arabic-reshaper python-bidi")
-        return text
-    except:
-        return text
+    if text and any('\u0600' <= c <= '\u06FF' for c in text):
+        reshaped_text = arabic_reshaper.reshape(text)
+        return get_display(reshaped_text)
+    return text
 
 def format_date(date_str):
     if not date_str:
@@ -145,6 +139,8 @@ def format_date(date_str):
 
 def wrap_text(draw, text, font, max_width):
     lines = []
+    if not text:
+        return lines
     words = text.split(' ')
     current_line = ''
     for word in words:
@@ -164,15 +160,17 @@ def create_card_image(data, size=(5760, 2700)):
     title_font_size = 130
     label_font_size = 95
     value_font_size = 85
+    
+    # استخدم خط Arial الذي يدعم العربية والإنجليزية
     try:
+        # استخدمنا خط Arial العادي والمائل (Bold)
         title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
         label_font = ImageFont.truetype("arial.ttf", label_font_size)
         value_font = ImageFont.truetype("arial.ttf", value_font_size)
-    except:
-        try:
-            title_font = ImageFont.truetype("arial.ttf", title_font_size)
-        except:
-            title_font = ImageFont.load_default()
+    except IOError:
+        # في حال عدم العثور على الخط، استخدم الخط الافتراضي
+        logger.warning("Arial font not found. Using default font. Arabic text might not render correctly.")
+        title_font = ImageFont.load_default()
         label_font = ImageFont.load_default()
         value_font = ImageFont.load_default()
 
@@ -221,13 +219,28 @@ def create_card_image(data, size=(5760, 2700)):
         value = data.get(key, '')
         if key in ['EID Expire Date']:
             value = format_date(value)
+        
+        # إعادة تشكيل النص العربي قبل عرضه
         value_display = reshape_arabic(str(value))
+        
         draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
+        
+        # تحديد اتجاه النص (يمين لليسار للعربي)
+        text_anchor = "ra" if arabic_reshaper.is_arabic_string(str(value)) else "la"
+        
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
+        
+        line_y = y
         for line in wrapped_lines:
-            draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
-            y += line_height // 1.8
-        y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.8)
+            # تحديد موقع النص بناءً على اتجاهه
+            if text_anchor == "ra":
+                draw.text((x_value + max_value_width, line_y), line, fill=(0, 0, 100), font=value_font, anchor=text_anchor)
+            else:
+                draw.text((x_value, line_y), line, fill=(0, 0, 100), font=value_font, anchor=text_anchor)
+            line_y += line_height // 1.8
+        
+        y += line_height * max(1, len(wrapped_lines))
+
 
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=98)
@@ -240,7 +253,7 @@ class ICPScraper:
         self.wait = None
         self.url = "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
-    def setup_driver(self):
+    def setup_driver(self ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
         options.add_argument("--disable-gpu")
@@ -254,17 +267,14 @@ class ICPScraper:
         options.add_experimental_option("useAutomationExtension", False)
         
         import os
-        # التحقق من وجود المتصفح في مسارات Linux الشائعة (Streamlit Cloud)
         chrome_bin = "/usr/bin/chromium"
         if not os.path.exists(chrome_bin):
             chrome_bin = "/usr/bin/chromium-browser"
             
         if os.path.exists(chrome_bin):
             options.binary_location = chrome_bin
-            # في Streamlit Cloud، نستخدم المشغل المثبت في النظام مباشرة لتجنب تعارض الإصدارات
             service = Service("/usr/bin/chromedriver") if os.path.exists("/usr/bin/chromedriver") else Service(ChromeDriverManager().install())
         else:
-            # التشغيل المحلي (Windows/Mac)
             service = Service(ChromeDriverManager().install())
         
         self.driver = webdriver.Chrome(service=service, options=options)
@@ -342,7 +352,7 @@ class ICPScraper:
             if (typeof jsQR === 'undefined') {
                 const script = document.createElement('script');
                 script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
-                document.head.appendChild(script);
+                document.head.appendChild(script );
             }
         """)
         time.sleep(3)
@@ -535,74 +545,4 @@ with tab2:
         df_show.index = range(1, len(df_show) + 1)
         st.write(f"Total records: {len(df_original)}")
         st.dataframe(df_show, height=150, use_container_width=True)
-        col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
-        if col_ctrl1.button("▶️ Start / Resume"):
-            st.session_state.run_state = 'running'
-            if st.session_state.start_time_ref is None:
-                st.session_state.start_time_ref = time.time()
-        if col_ctrl2.button("⏸️ Pause"):
-            st.session_state.run_state = 'paused'
-        if col_ctrl3.button("⏹️ Stop & Reset"):
-            st.session_state.run_state = 'stopped'
-            st.session_state.batch_results = []
-            st.session_state.start_time_ref = None
-            st.rerun()
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        stats_area = st.empty()
-        live_table_area = st.empty()
-        actual_success = 0
-        for i, row in df_original.iterrows():
-            while st.session_state.run_state == 'paused':
-                status_text.warning("Paused...")
-                time.sleep(1)
-            if st.session_state.run_state == 'stopped':
-                break
-            if i < len(st.session_state.batch_results):
-                if st.session_state.batch_results[i].get("Status") == "Found":
-                    actual_success += 1
-                displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
-                                    'EID Expire Date', 'Visa Issue Place', 'Profession',
-                                    'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
-                filtered_batch_df = pd.DataFrame([{k: v for k, v in item.items() if k in displayed_fields}
-                                                  for item in st.session_state.batch_results])
-                live_table_area.table(apply_styling(filtered_batch_df))
-                progress_bar.progress((i + 1) / len(df_original))
-                continue
-            p_num = str(row.get('Passport Number', '')).strip()
-            nat = str(row.get('Nationality', 'Egypt')).strip()
-            try:
-                dob = pd.to_datetime(row.get('Date of Birth')).strftime('%d/%m/%Y')
-            except:
-                dob = str(row.get('Date of Birth', ''))
-            gender = str(row.get('Gender', '1')).strip()
-            status_text.info(f"Processing {i+1}/{len(df_original)}: {p_num}")
-            scraper = ICPScraper()
-            res = scraper.perform_single_search(p_num, nat, dob, gender)
-            if res.get('Status') == 'Found':
-                actual_success += 1
-            st.session_state.batch_results.append(res)
-            elapsed = time.time() - (st.session_state.start_time_ref or time.time())
-            stats_area.markdown(f"✅ **Success:** {actual_success} | ⏱️ **Time:** {format_time(elapsed)}")
-            displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
-                                'EID Expire Date', 'Visa Issue Place', 'Profession',
-                                'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
-            filtered_batch_df = pd.DataFrame([{k: v for k, v in item.items() if k in displayed_fields}
-                                              for item in st.session_state.batch_results])
-            live_table_area.table(apply_styling(filtered_batch_df))
-            progress_bar.progress((i + 1) / len(df_original))
-        if len(st.session_state.batch_results) == len(df_original) and len(df_original) > 0:
-            st.success("Search Finished!")
-            displayed_fields = ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
-                                'EID Expire Date', 'Visa Issue Place', 'Profession',
-                                'English Sponsor Name', 'Arabic Sponsor Name', 'Related Individuals', 'Status']
-            final_df = pd.DataFrame([{k: v for k, v in item.items() if k in displayed_fields}
-                                     for item in st.session_state.batch_results])
-            excel_data = to_excel(final_df)
-            st.download_button(
-                label="📥 Download Results",
-                data=excel_data,
-                file_name=f"search_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="dl_results"
-            )
+        col_ctrl1, col_ctrl2, col_ctrl3
