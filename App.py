@@ -14,16 +14,18 @@ from webdriver_manager.chrome import ChromeDriverManager
 import io
 from PIL import Image, ImageDraw, ImageFont
 import base64
-import os
-import sys
+
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
 # --- Page Setup ---
 st.set_page_config(page_title="ICP Data Search", layout="wide")
+
 # --- Password Protection (Simple Start Page) ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
+
 if not st.session_state.authenticated:
     st.markdown("""
         <style>
@@ -41,10 +43,10 @@ if not st.session_state.authenticated:
         }
         </style>
     """, unsafe_allow_html=True)
-   
+    
     st.markdown('<div class="big-title">H-TRACING (ICP)</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center; font-size: 1.2rem; color: #555; margin-bottom: 40px;">Enter Password</div>', unsafe_allow_html=True)
-   
+    
     with st.container():
         st.markdown('<div class="password-box">', unsafe_allow_html=True)
         password = st.text_input("Password", type="password", label_visibility="collapsed")
@@ -59,10 +61,12 @@ if not st.session_state.authenticated:
                 else:
                     st.error("Password Wrong")
         st.markdown('</div>', unsafe_allow_html=True)
-   
-    st.stop()
+    
+    st.stop()  # يوقف التنفيذ حتى يتم التحقق
+
 # --- إذا تم التحقق بنجاح، يستمر التطبيق الرئيسي ---
 st.title("H-TRACING (ICP)")
+
 # --- Improve table appearance and make it single line (No Wrap) ---
 st.markdown("""
     <style>
@@ -77,6 +81,7 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
+
 # --- Session State Management ---
 if 'run_state' not in st.session_state:
     st.session_state.run_state = 'stopped'
@@ -88,21 +93,26 @@ if 'single_result' not in st.session_state:
     st.session_state.single_result = None
 if 'card_enlarged' not in st.session_state:
     st.session_state.card_enlarged = False
+
 # List of nationalities
 countries_list = ["Select Nationality", "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo (Congo-Brazzaville)", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Cyprus", "Czechia (Czech Republic)", "Democratic Republic of the Congo", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Holy See", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine State", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"]
+
 def format_time(seconds):
     return str(timedelta(seconds=int(seconds)))
+
 def to_excel(df):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Sheet1')
     return output.getvalue()
+
 def apply_styling(df):
     df.index = range(1, len(df) + 1)
     def color_status(val):
         color = '#90EE90' if val == 'Found' else '#FFCCCB'
         return f'background-color: {color}'
     return df.style.applymap(color_status, subset=['Status'])
+
 def reshape_arabic(text):
     try:
         import arabic_reshaper
@@ -116,6 +126,7 @@ def reshape_arabic(text):
         return text
     except:
         return text
+
 def format_date(date_str):
     if not date_str:
         return ''
@@ -131,6 +142,7 @@ def format_date(date_str):
         except:
             return date_str
     return date_str
+
 def wrap_text(draw, text, font, max_width):
     lines = []
     words = text.split(' ')
@@ -145,6 +157,7 @@ def wrap_text(draw, text, font, max_width):
     if current_line:
         lines.append(current_line.strip())
     return lines
+
 def create_card_image(data, size=(5760, 2700)):
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
@@ -162,12 +175,15 @@ def create_card_image(data, size=(5760, 2700)):
             title_font = ImageFont.load_default()
         label_font = ImageFont.load_default()
         value_font = ImageFont.load_default()
+
     draw.rectangle([(0, 0), (size[0], 150)], fill=(218, 165, 32))
     draw.text((120, 40), "H-TRACING", fill=(0, 0, 139), font=title_font)
+
     photo_x, photo_y = 180, 320
     photo_size = (950, 950)
     draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
                    outline=(80, 80, 80), width=10, fill=(230, 230, 230))
+
     if 'Photo' in data and data['Photo']:
         try:
             photo_bytes = base64.b64decode(data['Photo'].split(',')[1])
@@ -181,6 +197,7 @@ def create_card_image(data, size=(5760, 2700)):
     else:
         draw.text((photo_x + 120, photo_y + photo_size[1] // 2 - 120), "YOUR\nPHOTO\nHERE",
                   fill=(120, 120, 120), font=title_font, align="center")
+
     x_label = photo_x + photo_size[0] + 250
     x_value = x_label + 1600
     y_start = 350
@@ -197,6 +214,7 @@ def create_card_image(data, size=(5760, 2700)):
         ("Arabic Sponsor Name:", 'Arabic Sponsor Name'),
         ("Related Individuals:", 'Related Individuals')
     ]
+
     y = y_start
     max_value_width = size[0] - x_value - 200
     for label_text, key in fields:
@@ -210,15 +228,18 @@ def create_card_image(data, size=(5760, 2700)):
             draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
             y += line_height // 1.8
         y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.8)
+
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=98)
     buffer.seek(0)
     return buffer
+
 class ICPScraper:
     def __init__(self):
         self.driver = None
         self.wait = None
         self.url = "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
+
     def setup_driver(self):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
@@ -231,13 +252,13 @@ class ICPScraper:
         options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
-       
+        
         import os
         # التحقق من وجود المتصفح في مسارات Linux الشائعة (Streamlit Cloud)
         chrome_bin = "/usr/bin/chromium"
         if not os.path.exists(chrome_bin):
             chrome_bin = "/usr/bin/chromium-browser"
-           
+            
         if os.path.exists(chrome_bin):
             options.binary_location = chrome_bin
             # في Streamlit Cloud، نستخدم المشغل المثبت في النظام مباشرة لتجنب تعارض الإصدارات
@@ -245,19 +266,21 @@ class ICPScraper:
         else:
             # التشغيل المحلي (Windows/Mac)
             service = Service(ChromeDriverManager().install())
-       
+        
         self.driver = webdriver.Chrome(service=service, options=options)
-       
+        
         self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
             "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         })
-       
+        
         self.wait = WebDriverWait(self.driver, 30)
+
     def safe_clear_and_fill(self, element, value):
         element.send_keys(Keys.CONTROL + "a")
         element.send_keys(Keys.BACKSPACE)
         time.sleep(0.5)
         element.send_keys(str(value))
+
     def select_from_dropdown(self, label_name, search_value):
         try:
             dropdown_xpath = f"//label[contains(text(),'{label_name}')]/following::div[contains(@class,'ui-select-container')][1]"
@@ -274,6 +297,7 @@ class ICPScraper:
             time.sleep(1)
         except Exception as e:
             logger.warning(f"Dropdown selection failed for {label_name}: {e}")
+
     def capture_network_data(self):
         logger.info(" [>] Analyzing Network logs...")
         time.sleep(20)
@@ -312,6 +336,7 @@ class ICPScraper:
         except Exception as e:
             logger.error(f"Capture Error: {e}")
         return {'Status': 'Not Found'}
+
     def extract_qr_url(self):
         self.driver.execute_script("""
             if (typeof jsQR === 'undefined') {
@@ -355,6 +380,7 @@ class ICPScraper:
             extractQR().then(callback);
         """)
         return qr_url
+
     def perform_single_search(self, passport_number, nationality, date_of_birth, gender):
         self.setup_driver()
         try:
@@ -446,9 +472,12 @@ class ICPScraper:
         finally:
             if self.driver:
                 self.driver.quit()
+
 def toggle_card():
     st.session_state.card_enlarged = not st.session_state.card_enlarged
+
 tab1, tab2 = st.tabs(["Single Search", "Upload Excel File"])
+
 with tab1:
     st.subheader("Single Person Search")
     c1, c2, c3 = st.columns(3)
@@ -456,7 +485,7 @@ with tab1:
     n_in = c2.selectbox("Nationality", countries_list, key="s_n")
     d_in = c3.date_input("Date of Birth", value=None, min_value=datetime(1900,1,1), format="DD/MM/YYYY", key="s_d")
     g_in = st.radio("Gender", options=["Male", "Female"], index=0, key="s_g")
-  
+   
     col_btn1, col_btn_stop, col_btn2 = st.columns(3)
     with col_btn1:
         if st.button("Search Now", key="single_search_button"):
@@ -466,17 +495,17 @@ with tab1:
                     gender_value = "1" if g_in == "Male" else "0"
                     res = scraper.perform_single_search(p_in, n_in, d_in.strftime("%d/%m/%Y"), gender_value)
                     st.session_state.single_result = res or None
-  
+   
     with col_btn_stop:
         if st.button("🛑 Stop", key="stop_single_search"):
             st.session_state.single_result = None
             st.rerun()
-  
+   
     with col_btn2:
         if st.button("Clear", key="clear_button"):
             st.session_state.single_result = None
             st.rerun()
-  
+   
     single_table_area = st.empty()
     card_image_area = st.empty()
     if st.session_state.single_result:
@@ -496,6 +525,7 @@ with tab1:
                 file_name=f"card_{st.session_state.single_result.get('Unified Number', 'unknown')}.jpg",
                 mime="image/jpeg"
             )
+
 with tab2:
     st.subheader("Batch Processing Control")
     uploaded_file = st.file_uploader("Upload Excel", type=["xlsx"])
