@@ -14,6 +14,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 import io
 from PIL import Image, ImageDraw, ImageFont
 import base64
+import os
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -158,37 +159,78 @@ def wrap_text(draw, text, font, max_width):
         lines.append(current_line.strip())
     return lines
 
-def create_card_image(data, size=(5760, 2700)):
+def get_font_path(font_name):
+    """الحصول على مسار الخط المتاح في النظام"""
+    # قائمة بالمسارات المحتملة للخطوط
+    font_paths = [
+        f"/usr/share/fonts/truetype/{font_name}.ttf",
+        f"/usr/share/fonts/{font_name}.ttf",
+        f"/usr/share/fonts/TTF/{font_name}.ttf",
+        f"/usr/local/share/fonts/{font_name}.ttf",
+        f"C:/Windows/Fonts/{font_name}.ttf",
+        f"{font_name}.ttf",
+    ]
+    
+    for path in font_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
+
+def create_card_image(data, size=(4000, 2000)):  # تخفيض حجم الكارت ليكون مناسب للخطوط الكبيرة
     img = Image.new('RGB', size, color=(250, 250, 250))
     draw = ImageDraw.Draw(img)
     
-    # ⬇️⬇️⬇️ زيادة أحجام الخطوط بشكل كبير ⬇️⬇️⬇️
-    title_font_size = 180  # كان 130
-    label_font_size = 140  # كان 95
-    value_font_size = 130  # كان 85
+    # ⬇️⬇️⬇️ زيادة أحجام الخطوط بشكل كبير جداً ⬇️⬇️⬇️
+    title_font_size = 120  # حجم خط العنوان
+    label_font_size = 70   # حجم خط التسميات
+    value_font_size = 65   # حجم خط القيم
     
+    # محاولة استخدام Calibri أو خطوط بديلة
     try:
-        title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
-        label_font = ImageFont.truetype("arial.ttf", label_font_size)
-        value_font = ImageFont.truetype("arial.ttf", value_font_size)
-    except:
+        # محاولة تحميل Calibri
+        calibri_path = get_font_path("calibri")
+        calibri_bold_path = get_font_path("calibrib")
+        
+        if calibri_bold_path:
+            title_font = ImageFont.truetype(calibri_bold_path, title_font_size)
+        else:
+            title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
+            
+        if calibri_path:
+            label_font = ImageFont.truetype(calibri_path, label_font_size)
+            value_font = ImageFont.truetype(calibri_path, value_font_size)
+        else:
+            label_font = ImageFont.truetype("arial.ttf", label_font_size)
+            value_font = ImageFont.truetype("arial.ttf", value_font_size)
+            
+    except Exception as e:
+        logger.warning(f"خطأ في تحميل الخطوط: {e}")
         try:
-            title_font = ImageFont.truetype("arial.ttf", title_font_size)
+            title_font = ImageFont.truetype("arialbd.ttf", title_font_size)
+            label_font = ImageFont.truetype("arial.ttf", label_font_size)
+            value_font = ImageFont.truetype("arial.ttf", value_font_size)
         except:
             title_font = ImageFont.load_default()
-        label_font = ImageFont.load_default()
-        value_font = ImageFont.load_default()
+            label_font = ImageFont.load_default()
+            value_font = ImageFont.load_default()
 
-    # ⬇️⬇️⬇️ زيادة ارتفاع شريط العنوان ⬇️⬇️⬇️
-    draw.rectangle([(0, 0), (size[0], 200)], fill=(218, 165, 32))  # كان 150
-    draw.text((150, 50), "H-TRACING", fill=(0, 0, 139), font=title_font)  # كان (120, 40)
+    # ⬇️⬇️⬇️ تصميم شريط العنوان ⬇️⬇️⬇️
+    header_height = 180
+    draw.rectangle([(0, 0), (size[0], header_height)], fill=(218, 165, 32))
+    
+    # نص العنوان في المركز
+    title_text = "H-TRACING"
+    title_width = draw.textlength(title_text, font=title_font)
+    title_x = (size[0] - title_width) // 2
+    draw.text((title_x, 50), title_text, fill=(0, 0, 139), font=title_font)
 
-    # ⬇️⬇️⬇️ زيادة حجم الصورة الشخصية ⬇️⬇️⬇️
-    photo_x, photo_y = 200, 350  # كان (180, 320)
-    photo_size = (1200, 1200)  # كان (950, 950)
+    # ⬇️⬇️⬇️ مكان الصورة الشخصية ⬇️⬇️⬇️
+    photo_x, photo_y = 150, 250
+    photo_size = (800, 800)
     
     draw.rectangle([(photo_x, photo_y), (photo_x + photo_size[0], photo_y + photo_size[1])],
-                   outline=(80, 80, 80), width=15, fill=(230, 230, 230))  # كان width=10
+                   outline=(80, 80, 80), width=12, fill=(230, 230, 230))
 
     if 'Photo' in data and data['Photo']:
         try:
@@ -198,17 +240,17 @@ def create_card_image(data, size=(5760, 2700)):
             img.paste(personal_photo, (photo_x, photo_y))
         except Exception as e:
             logger.warning(f"Failed to load personal photo: {e}")
-            draw.text((photo_x + 200, photo_y + photo_size[1] // 2 - 150), "YOUR\nPHOTO\nHERE",
-                      fill=(120, 120, 120), font=title_font, align="center")  # كان (120, 120)
+            draw.text((photo_x + photo_size[0]//2 - 150, photo_y + photo_size[1]//2 - 50), 
+                     "NO PHOTO", fill=(120, 120, 120), font=title_font, align="center")
     else:
-        draw.text((photo_x + 200, photo_y + photo_size[1] // 2 - 150), "YOUR\nPHOTO\nHERE",
-                  fill=(120, 120, 120), font=title_font, align="center")
+        draw.text((photo_x + photo_size[0]//2 - 150, photo_y + photo_size[1]//2 - 50), 
+                 "NO PHOTO", fill=(120, 120, 120), font=title_font, align="center")
 
-    # ⬇️⬇️⬇️ ضبط مواضع ومسافات النصوص ⬇️⬇️⬇️
-    x_label = photo_x + photo_size[0] + 300  # كان +250
-    x_value = x_label + 1800  # كان +1600
-    y_start = 400  # كان 350
-    line_height = 180  # كان 135
+    # ⬇️⬇️⬇️ معلومات النصوص ⬇️⬇️⬇️
+    x_label = photo_x + photo_size[0] + 150
+    x_value = x_label + 400
+    y_start = 280
+    line_height = 100
     
     fields = [
         ("English Name:", 'English Name'),
@@ -224,7 +266,7 @@ def create_card_image(data, size=(5760, 2700)):
     ]
 
     y = y_start
-    max_value_width = size[0] - x_value - 250  # كان -200
+    max_value_width = size[0] - x_value - 100
     
     for label_text, key in fields:
         value = data.get(key, '')
@@ -232,29 +274,30 @@ def create_card_image(data, size=(5760, 2700)):
             value = format_date(value)
         value_display = reshape_arabic(str(value))
         
-        # رسم النص الأساسي
+        # رسم التسمية
         draw.text((x_label, y), label_text, fill=(0, 0, 0), font=label_font)
+        
+        # تقسيم النص إذا كان طويلاً
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
         
-        # رسم كل سطر من النص الملتف
         for line in wrapped_lines:
             draw.text((x_value, y), line, fill=(0, 0, 100), font=value_font)
-            y += line_height // 1.6  # كان //1.8
+            y += line_height // 1.5
         
-        # الانتقال للسطر التالي مع مسافة أكبر
-        y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.6)
+        y += line_height - (len(wrapped_lines) - 1) * (line_height // 1.5)
 
-    # ⬇️⬇️⬇️ إضافة معلومات إضافية في أسفل الكارت ⬇️⬇️⬇️
-    footer_y = size[1] - 150
-    draw.text((x_label, footer_y), "Generated by H-TRACING System", 
+    # ⬇️⬇️⬇️ معلومات إضافية في الأسفل ⬇️⬇️⬇️
+    footer_y = size[1] - 120
+    draw.text((x_label, footer_y), "H-TRACING SYSTEM", 
               fill=(100, 100, 100), font=label_font)
     
     current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
-    draw.text((size[0] - 800, footer_y), f"Date: {current_date}", 
+    date_width = draw.textlength(f"Date: {current_date}", font=label_font)
+    draw.text((size[0] - date_width - 50, footer_y), f"Date: {current_date}", 
               fill=(100, 100, 100), font=label_font)
 
     buffer = io.BytesIO()
-    img.save(buffer, format="JPEG", quality=98)
+    img.save(buffer, format="JPEG", quality=95)
     buffer.seek(0)
     return buffer
 
@@ -540,7 +583,7 @@ with tab1:
         single_table_area.table(apply_styling(filtered_df))
         if st.session_state.single_result.get('Status') == 'Found':
             card_buffer = create_card_image(st.session_state.single_result)
-            card_width = 1400 if st.session_state.card_enlarged else 700
+            card_width = 1000 if st.session_state.card_enlarged else 600
             card_image_area.image(card_buffer, caption="Generated Card (Preview)", width=card_width)
             st.button("Enlarge Card" if not st.session_state.card_enlarged else "Shrink Card", on_click=toggle_card)
             st.download_button(
