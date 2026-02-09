@@ -182,7 +182,7 @@ def create_card_image(data, size=(3500, 2000)):
                     # محاولة استخدام Noto Sans
                     title_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", title_font_size)
                     label_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", label_font_size)
-                    value_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", value_font_size)
+                    value_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf", value_font_size)
                     fonts_tried.append("Noto Sans")
                 except Exception as e4:
                     # أخيراً: استخدام الخط الافتراضي مع أحجام كبيرة
@@ -269,7 +269,7 @@ def create_card_image(data, size=(3500, 2000)):
         draw.text((text_start_x, y), label_text, fill=(0, 0, 0), font=label_font)
        
         # رسم القيمة
-        value_x = text_start_x + 500
+        value_x = text_start_x + 700
         max_value_width = size[0] - value_x - 150
        
         wrapped_lines = wrap_text(draw, value_display, value_font, max_value_width)
