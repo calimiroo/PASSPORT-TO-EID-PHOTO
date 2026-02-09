@@ -218,13 +218,12 @@ class ICPScraper:
             zip_ref.extractall("/tmp")
             driver_executable_path = os.path.join("/tmp", executable_name)
 
-        # --- السطر الحاسم الذي يحل المشكلة ---
-        # إعطاء صلاحيات التنفيذ للملف
-        st = os.stat(driver_executable_path)
-        os.chmod(driver_executable_path, st.st_mode | stat.S_IEXEC)
+        # --- التعديل الأخير والأبسط ---
+        # إعطاء صلاحيات التنفيذ باستخدام القيمة الرقمية
+        os.chmod(driver_executable_path, 0o755)
+        logger.info(f"Execution permissions set for {driver_executable_path}")
         # --- نهاية التعديل ---
         
-        logger.info(f"Chromedriver is ready at: {driver_executable_path}")
         return driver_executable_path
 
     def setup_driver(self):
