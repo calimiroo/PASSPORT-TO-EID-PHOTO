@@ -3,3 +3,4 @@ chromium-driver
 fonts-dejavu-core
 fonts-freefont-ttf
 fonts-liberation
+fonts-arial
