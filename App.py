@@ -185,7 +185,7 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
-    # --- التعديل هنا ---
+    # --- التعديل النهائي هنا ---
     def setup_driver(self ):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
@@ -199,17 +199,15 @@ class ICPScraper:
         options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
         options.add_experimental_option("useAutomationExtension", False)
         
-        # التحقق إذا كان الكود يعمل في بيئة Streamlit Cloud
+        # تحديد مسار المتصفح في بيئة Streamlit Cloud
         if os.path.exists("/usr/bin/chromium-browser"):
-            logger.info("Detected Streamlit Cloud environment. Using pre-installed drivers.")
             options.binary_location = "/usr/bin/chromium-browser"
-            service = Service("/usr/bin/chromedriver")
-        else:
-            # إذا لم يكن في بيئة Streamlit Cloud، استخدم webdriver-manager (للعمل المحلي)
-            logger.info("Local environment detected. Using WebDriver Manager.")
-            service = Service(ChromeDriverManager().install())
-        
+
         try:
+            logger.info("Setting up WebDriver using ChromeDriverManager...")
+            # استخدام webdriver-manager لتنزيل المحرك المتوافق
+            service = Service(ChromeDriverManager().install())
+            
             self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"})
             self.wait = WebDriverWait(self.driver, 30)
