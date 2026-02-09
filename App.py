@@ -10,13 +10,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import io
-from PIL import Image, ImageDraw, ImageFont
-import base64
-import arabic_reshaper
-from bidi.algorithm import get_display
+# سنستخدم هذه المكتبات للتنزيل اليدوي
+import requests
+import zipfile
 import os
+import stat
 
 # --- إعدادات تسجيل الأخطاء ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -185,7 +183,38 @@ class ICPScraper:
     def __init__(self):
         self.driver, self.wait, self.url = None, None, "https://smartservices.icp.gov.ae/echannels/web/client/guest/index.html#/issueQrCode"
 
-    def setup_driver(self ):
+    # --- الحل الجذري والنهائي ---
+    @st.cache_resource
+    def get_driver_path( ):
+        logger.info("Downloading and setting up a compatible chromedriver...")
+        # تحديد الإصدار المطلوب (يجب أن يكون متوافقًا مع Chrome 144)
+        # للأسف، لا يوجد إصدار رسمي لـ 144 بعد، سنستخدم أحدث إصدار مستقر متاح
+        # يمكنك تغيير هذا الرقم في المستقبل إذا لزم الأمر
+        chrome_version = "121.0.6167.85" # مثال لأحدث إصدار مستقر
+        driver_url = f"https://storage.googleapis.com/chrome-for-testing-public/{chrome_version}/linux64/chromedriver-linux64.zip"
+        driver_zip_path = "/tmp/chromedriver.zip"
+        driver_dir_path = "/tmp/chromedriver-linux64"
+        driver_executable_path = os.path.join(driver_dir_path, "chromedriver" )
+
+        # تنزيل الملف
+        response = requests.get(driver_url, stream=True)
+        if response.status_code == 200:
+            with open(driver_zip_path, "wb") as f:
+                f.write(response.content)
+        else:
+            raise Exception(f"Failed to download chromedriver version {chrome_version}")
+
+        # فك الضغط
+        with zipfile.ZipFile(driver_zip_path, "r") as zip_ref:
+            zip_ref.extractall("/tmp")
+        
+        # إعطاء صلاحيات التنفيذ
+        os.chmod(driver_executable_path, stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        
+        logger.info(f"Chromedriver is ready at: {driver_executable_path}")
+        return driver_executable_path
+
+    def setup_driver(self):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
         options.add_argument("--disable-gpu")
@@ -194,12 +223,13 @@ class ICPScraper:
         options.add_argument("--disable-dev-shm-usage")
         
         try:
-            logger.info("Setting up WebDriver for Streamlit Cloud...")
-            # بفضل packages.txt، سيجد webdriver-manager الآن الأدوات الصحيحة.
-            service = Service(ChromeDriverManager().install())
+            # استخدام الدالة التي تقوم بالتنزيل اليدوي
+            driver_path = ICPScraper.get_driver_path()
+            service = Service(executable_path=driver_path)
+            
             self.driver = webdriver.Chrome(service=service, options=options)
             self.wait = WebDriverWait(self.driver, 30)
-            logger.info("WebDriver setup successful.")
+            logger.info("WebDriver setup successful using manually downloaded driver.")
         except Exception as e:
             logger.error(f"Failed to create WebDriver session: {e}")
             st.error(f"Could not start browser session. Please check logs. Error: {e}")
