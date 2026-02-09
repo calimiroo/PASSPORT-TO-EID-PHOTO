@@ -135,14 +135,24 @@ def format_date(date_str):
     if 'T' in date_str:
         date_str = date_str.split('T')[0]
     try:
+        # محاولة تحليل كـ YYYY-MM-DD
         parsed = datetime.strptime(date_str.strip(), '%Y-%m-%d')
         return parsed.strftime('%d/%m/%Y')
-    except:
+    except ValueError:
         try:
+            # محاولة تحليل كـ DD/MM/YYYY
             parsed = datetime.strptime(date_str.strip(), '%d/%m/%Y')
             return date_str.strip()
-        except:
-            return date_str
+        except ValueError:
+            try:
+                # إذا كانت سنة فقط، افترض 31/12/YYYY
+                if len(date_str.strip()) == 4 and date_str.strip().isdigit():
+                    year = int(date_str.strip())
+                    return f"31/12/{year}"
+                else:
+                    return date_str
+            except:
+                return date_str
     return date_str
 
 def wrap_text(draw, text, font, max_width):
@@ -221,6 +231,11 @@ def create_card_image(data, size=(3500, 2000)):
     if data.get('Nationality'):
         draw.text((info_x, info_y), f"Nationality: {data.get('Nationality', '')}", 
                  fill=(0, 0, 0), font=label_font)
+    
+    info_y += 110
+    if data.get('Date of Birth'):
+        draw.text((info_x, info_y), f"Date of Birth: {data.get('Date of Birth', '')}", 
+                 fill=(0, 0, 0), font=label_font)
 
     # الصورة الشخصية
     photo_size = (700, 700)
@@ -265,7 +280,7 @@ def create_card_image(data, size=(3500, 2000)):
     y = text_start_y
     for label_text, key in fields:
         value = data.get(key, '')
-        if key in ['EID Expire Date']:
+        if key in ['EID Expire Date', 'Date of Birth']:
             value = format_date(value)
         
         value_display = reshape_arabic(str(value)) if key in ['Arabic Name', 'Arabic Sponsor Name', 'Related Individuals'] else str(value)
@@ -511,6 +526,7 @@ class ICPScraper:
                 
                 result['Passport Number'] = passport_number
                 result['Nationality'] = nationality
+                result['Date of Birth'] = dob_formatted
                 result['Gender'] = gender
                 
                 # استخراج QR والصورة
@@ -598,12 +614,12 @@ with tab1:
             display_data = {
                 'Field': ['English Name', 'Arabic Name', 'Unified Number', 'EID Number',
                          'EID Expiry Date', 'Visa Issue Place', 'Profession',
-                         'English Sponsor', 'Arabic Sponsor', 'Related Individuals'],
+                         'English Sponsor', 'Arabic Sponsor', 'Related Individuals', 'Date of Birth'],
                 'Value': [result.get('English Name', ''), result.get('Arabic Name', ''),
                          result.get('Unified Number', ''), result.get('EID Number', ''),
                          result.get('EID Expire Date', ''), result.get('Visa Issue Place', ''),
                          result.get('Profession', ''), result.get('English Sponsor Name', ''),
-                         result.get('Arabic Sponsor Name', ''), result.get('Related Individuals', '')]
+                         result.get('Arabic Sponsor Name', ''), result.get('Related Individuals', ''), result.get('Date of Birth', '')]
             }
             
             df = pd.DataFrame(display_data)
